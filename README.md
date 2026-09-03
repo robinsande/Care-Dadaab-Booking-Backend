@@ -43,10 +43,43 @@ npm run dev
 
 Base URL: `http://localhost:5000/api/v1`
 
-Default seed logins:
+**Live API URL:** `https://care-dadaab-booking-backend.onrender.com/api/v1`
 
-- Super Admin: `admin@care.org` / `ChangeMe123!`
-- Officer: `officer@care.org` / `ChangeMe123!`
+---
+
+## 🌱 Database Seeding
+
+### Quick Seed Setup
+
+To populate your database with default test users and sample data:
+
+```bash
+# 1. Copy the seed configuration template
+cp .env.seed .env
+
+# 2. Update .env with your actual MongoDB URI and secrets:
+# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/care-dadaab
+# JWT_SECRET=your-secret-key
+
+# 3. Run the seed script
+npm run seed
+```
+
+### Default Seed Logins
+
+Once seeded, you can login with these credentials:
+
+- **Super Admin:** `admin@care.org` / `ChangeMe123!`
+- **Officer:** `officer@care.org` / `ChangeMe123!`
+
+### What Gets Seeded
+
+- 3 Camps (Dadaab, Hagadera, Ifo)
+- 65+ Rooms across multiple blocks
+- Accommodation rates (Short Stay & Long Stay)
+- System settings
+- Sample booking
+- Default users
 
 ---
 
@@ -115,3 +148,46 @@ All endpoints require JWT except `POST /auth/login`.
 { "success": true, "message": "...", "data": {} }
 { "success": false, "message": "...", "errors": [] }
 ```
+
+---
+
+## Environment Variables
+
+```env
+# Database
+MONGODB_URI=mongodb+srv://...
+
+# Authentication
+JWT_SECRET=your-secret-key
+
+# Server
+NODE_ENV=production
+PORT=10000
+API_PREFIX=/api/v1
+
+# CORS
+CORS_ORIGIN=https://your-frontend-domain.com
+
+# Seeding
+SEED_PASSWORD=ChangeMe123!
+SEED_SUPER_ADMIN_EMAIL=admin@care.org
+SEED_OFFICER_EMAIL=officer@care.org
+
+# Booking
+BOOKING_REFERENCE_PREFIX=CAMS
+
+# Support
+SUPPORT_PHONE=+254700000000
+```
+
+---
+
+## Deployment (Render)
+
+1. Push to GitHub
+2. Connect repo to Render
+3. Set environment variables (MONGODB_URI, JWT_SECRET, CORS_ORIGIN)
+4. Deploy
+5. Run seed script to populate database
+
+**Live deployment:** https://care-dadaab-booking-backend.onrender.com
