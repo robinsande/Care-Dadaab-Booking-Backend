@@ -255,6 +255,11 @@ const syncRoomStatus = async (roomId) => {
   return room;
 };
 
+const syncAllRoomStatuses = async () => {
+  const rooms = await Room.find({ isActive: true }).select('_id');
+  for (const room of rooms) await syncRoomStatus(room._id);
+};
+
 module.exports = {
   listRooms,
   listRoomsByCamp,
@@ -262,6 +267,7 @@ module.exports = {
   listAvailableRooms,
   getRoomById,
   syncRoomStatus,
+  syncAllRoomStatuses,
   createRoom,
   updateRoom,
   deleteRoom,

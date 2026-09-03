@@ -4,6 +4,7 @@ const { connectDB } = require('./config/db');
 const logger = require('./utils/logger');
 const mongoose = require('mongoose');
 const { autoCheckOutDueBookings } = require('./services/booking.service');
+const { syncAllRoomStatuses } = require('./services/room.service');
 
 /**
  * Application entry point. Connects to MongoDB, then starts the HTTP server.
@@ -13,6 +14,7 @@ const start = async () => {
   await connectDB();
 
   await autoCheckOutDueBookings();
+  await syncAllRoomStatuses();
   const checkoutSweep = setInterval(() => {
     autoCheckOutDueBookings().catch((error) => logger.error(`Automatic checkout failed: ${error.message}`));
   }, 60 * 1000);

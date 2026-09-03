@@ -219,6 +219,7 @@ const updateBooking = async (bookingId, payload, actor) => {
   }
 
   const isCheckedIn = booking.status === BOOKING_STATUS.CHECKED_IN;
+  const previousRoomId = booking.room;
 
   if (isCheckedIn) {
     const guestFields = [
@@ -301,6 +302,10 @@ const updateBooking = async (bookingId, payload, actor) => {
   }
 
   await booking.save();
+  if (String(previousRoomId) !== String(booking.room)) {
+    await roomService.syncRoomStatus(previousRoomId);
+  }
+  await roomService.syncRoomStatus(booking.room);
 
   await auditService.record({
     action: AUDIT_ACTIONS.BOOKING_UPDATED,
