@@ -1,0 +1,90 @@
+const { Booking, Room, Invoice, Camp } = require('../models');
+const {
+  BOOKING_STATUS,
+  ACTIVE_BOOKING_STATUSES,
+  ROOM_STATUS,
+  INVOICE_PAYMENT_STATUS,
+} = require('../utils/constants');
+const { startOfDay, endOfDay } = require('../utils/dates');
+
+const getOccupiedRoomCount = async (date = new Date()) => {
+  const dayStart = startOfDay(date);
+  const dayEnd = endOfDay(date);
+
+  const occupiedRoomIds = await Booking.distinct('room', {
+    status: { $in: ACTIVE_BOOKING_STATUSES },
+    arrivalDate: { $lte: dayEnd },
+    departureDate: { $gt: dayStart },
+  });
+
+  return occupiedRoomIds.length;
+};
+
+const getDashboard = async () => {
+  const todayStart = startOfDay();
+  const todayEnd = endOfDay();
+
+  const [
+    todaysArrivals,
+    todaysDepartures,
+    occupiedRooms,
+    totalActiveRooms,
+    maintenanceRooms,
+    outstandingInvoices,
+    recentBookings,
+    camps,
+  ] = await Promise.all([
+    Booking.countDocuments({
+      status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN] },
+      arrivalDate: { $gte: todayStart, $lte: todayEnd },
+    }),
+    Booking.countDocuments({
+      status: { $in: [BOOKING_STATUS.CHECKED_IN, BOOKING_STATUS.BOOKED] },
+      departureDate: { $gte: todayStart, $lte: todayEnd },
+    }),
+    getOccupiedRoomCount(),
+    Room.countDocuments({ isActive: true, status: { $nin: [ROOM_STATUS.MAINTENANCE, ROOM_STATUS.OCCUPIED] } }),
+    Room.countDocuments({ status: ROOM_STATUS.MAINTENANCE, isActive: true }),
+    Invoice.countDocuments({ paymentStatus: INVOICE_PAYMENT_STATUS.UNPAID }),
+    Booking.find()
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('camp', 'name')
+      .select('bookingReference status campName guest arrivalDate departureDate createdAt'),
+    Camp.find({ isActive: true }).sort({ name: 1 }),
+  ]);
+
+  const bookingsByCamp = await Booking.aggregate([
+    {
+      $match: {
+        status: { $in: ACTIVE_BOOKING_STATUSES },
+      },
+    },
+    {
+      $group: {
+        _id: '$campName',
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  const availableRooms = Math.max(totalActiveRooms - occupiedRooms, 0);
+
+  return {
+    todaysArrivals,
+    todaysDepartures,
+    occupiedRooms,
+    availableRooms,
+    maintenanceRooms,
+    outstandingInvoices,
+    recentBookings,
+    bookingsByCamp: bookingsByCamp.map((row) => ({
+      campName: row._id,
+      count: row.count,
+    })),
+    camps: camps.map((c) => ({ id: c._id, name: c.name })),
+  };
+};
+
+module.exports = { getDashboard, getOccupiedRoomCount };

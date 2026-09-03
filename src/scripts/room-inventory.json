@@ -1,0 +1,396 @@
+{
+  "source": "Rooms no..xlsx",
+  "generatedAt": "2026-07-30T06:24:22.380Z",
+  "rooms": [
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Runda",
+      "roomNumber": "80"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "Gadude",
+      "roomNumber": "1"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Runda",
+      "roomNumber": "1"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Runda",
+      "roomNumber": "81"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "Gadude",
+      "roomNumber": "2"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Runda",
+      "roomNumber": "2"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Runda",
+      "roomNumber": "82"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "Gadude",
+      "roomNumber": "3"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Runda",
+      "roomNumber": "3"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Runda",
+      "roomNumber": "83"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "Gadude",
+      "roomNumber": "4"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Lavinton",
+      "roomNumber": "4"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Runda",
+      "roomNumber": "84"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "NRC",
+      "roomNumber": "5"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Maji  House",
+      "roomNumber": "5"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Runda",
+      "roomNumber": "85"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "NRC",
+      "roomNumber": "6"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Maji  House",
+      "roomNumber": "6"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Runda",
+      "roomNumber": "86"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "NRC",
+      "roomNumber": "7"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Rongai",
+      "roomNumber": "7"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Runda",
+      "roomNumber": "87"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "NRC",
+      "roomNumber": "8"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Rongai",
+      "roomNumber": "8"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Mother wing",
+      "roomNumber": "88"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "WFP",
+      "roomNumber": "9"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Florida",
+      "roomNumber": "9"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Mother wing",
+      "roomNumber": "89"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "WFP",
+      "roomNumber": "10"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Florida",
+      "roomNumber": "10"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Dadaab",
+      "roomNumber": "94"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "WFP",
+      "roomNumber": "11"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Florida",
+      "roomNumber": "11"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Liboi",
+      "roomNumber": "70"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "WFP",
+      "roomNumber": "12"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Florida",
+      "roomNumber": "12"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Liboi",
+      "roomNumber": "68"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "13"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Florida",
+      "roomNumber": "13"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Liboi",
+      "roomNumber": "24"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "14"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Florida",
+      "roomNumber": "14"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Singapore",
+      "roomNumber": "34"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "15"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Florida",
+      "roomNumber": "15"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Singapore",
+      "roomNumber": "35"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "16"
+    },
+    {
+      "camp": "CARE Ifo",
+      "campCode": "IFO",
+      "block": "Florida",
+      "roomNumber": "16"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Prefab",
+      "roomNumber": "36"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "17"
+    },
+    {
+      "camp": "CARE Dadaab",
+      "campCode": "DMO",
+      "block": "Prefab",
+      "roomNumber": "37"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "18"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "19"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "20"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "21"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "22"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "23"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "24"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "25"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "26"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "27"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "28"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "29"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "30"
+    },
+    {
+      "camp": "CARE Hagadera",
+      "campCode": "HAG",
+      "block": "FAFI",
+      "roomNumber": "31"
+    }
+  ]
+}
