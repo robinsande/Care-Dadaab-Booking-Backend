@@ -27,6 +27,7 @@ const ACTIVE_BOOKING_STATUSES = Object.freeze([
 
 const ROOM_STATUS = Object.freeze({
   AVAILABLE: 'Available',
+  BOOKED: 'Booked',
   OCCUPIED: 'Occupied',
   MAINTENANCE: 'Maintenance',
 });

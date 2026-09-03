@@ -33,6 +33,7 @@ const getDashboard = async () => {
     outstandingInvoices,
     recentBookings,
     camps,
+    roomStatusRows,
   ] = await Promise.all([
     Booking.countDocuments({
       status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN] },
@@ -52,6 +53,10 @@ const getDashboard = async () => {
       .populate('camp', 'name')
       .select('bookingReference status campName guest arrivalDate departureDate createdAt'),
     Camp.find({ isActive: true }).sort({ name: 1 }),
+    Room.find({ isActive: true })
+      .populate('camp', 'name')
+      .sort({ campName: 1, blockName: 1, roomNumber: 1 })
+      .select('camp blockName roomNumber status'),
   ]);
 
   const bookingsByCamp = await Booking.aggregate([
@@ -84,6 +89,12 @@ const getDashboard = async () => {
       count: row.count,
     })),
     camps: camps.map((c) => ({ id: c._id, name: c.name })),
+    roomStatuses: roomStatusRows.map((room) => ({
+      campName: room.camp?.name || '—',
+      blockName: room.blockName,
+      roomNumber: room.roomNumber,
+      status: room.status,
+    })),
   };
 };
 

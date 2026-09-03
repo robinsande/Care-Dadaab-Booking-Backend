@@ -63,7 +63,7 @@ const layout = (title, bodyHtml) => `
 const detailRow = (label, value) =>
   `<p style="margin:4px 0;"><strong>${label}:</strong> ${value}</p>`;
 
-const sendBookingCreated = (booking) => {
+const sendBookingCreated = (booking, recipients = booking.guest.email) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
     <p>Your accommodation booking has been confirmed.</p>
@@ -79,7 +79,7 @@ const sendBookingCreated = (booking) => {
     </p>
   `;
   return sendEmail({
-    to: booking.guest.email,
+    to: recipients,
     subject: `Booking Confirmed - ${booking.bookingReference}`,
     html: layout('Booking Confirmation', body),
   });

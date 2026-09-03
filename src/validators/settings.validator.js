@@ -12,6 +12,7 @@ const updateSettingsRules = [
   body('payment.bankName').optional().trim(),
   body('payment.bankAccountName').optional().trim(),
   body('payment.bankAccountNumber').optional().trim(),
+  body('notifications.sendBookingConfirmation').optional().isBoolean(),
 ];
 
 module.exports = { updateSettingsRules };

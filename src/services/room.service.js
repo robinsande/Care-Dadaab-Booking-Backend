@@ -33,7 +33,7 @@ const listAvailableRooms = async ({
   departureDate,
 } = {}) => {
   const roomFilter = {
-    status: { $nin: [ROOM_STATUS.MAINTENANCE, ROOM_STATUS.OCCUPIED] },
+    status: { $nin: [ROOM_STATUS.MAINTENANCE, ROOM_STATUS.BOOKED, ROOM_STATUS.OCCUPIED] },
     isActive: true,
   };
   if (campId) roomFilter.camp = campId;
@@ -206,7 +206,7 @@ const assertRoomAssignable = async ({
     throw ApiError.conflict(`${room.label} is under maintenance and cannot be assigned.`);
   }
 
-  if (room.status === ROOM_STATUS.OCCUPIED) {
+  if ([ROOM_STATUS.BOOKED, ROOM_STATUS.OCCUPIED].includes(room.status)) {
     throw ApiError.conflict(`${room.label} is currently occupied and cannot be assigned.`);
   }
 
@@ -232,12 +232,36 @@ const assertRoomAssignable = async ({
   return room;
 };
 
+const syncRoomStatus = async (roomId) => {
+  const room = await Room.findById(roomId);
+  if (!room || room.status === ROOM_STATUS.MAINTENANCE) return room;
+
+  const activeBookings = await Booking.find({
+    room: room._id,
+    status: { $in: ACTIVE_BOOKING_STATUSES },
+    departureDate: { $gt: new Date() },
+  }).select('status').sort({ status: 1 });
+
+  const nextStatus = activeBookings.some((booking) => booking.status === 'Checked In')
+    ? ROOM_STATUS.OCCUPIED
+    : activeBookings.length
+      ? ROOM_STATUS.BOOKED
+      : ROOM_STATUS.AVAILABLE;
+
+  if (room.status !== nextStatus) {
+    room.status = nextStatus;
+    await room.save();
+  }
+  return room;
+};
+
 module.exports = {
   listRooms,
   listRoomsByCamp,
   listBlocksByCamp,
   listAvailableRooms,
   getRoomById,
+  syncRoomStatus,
   createRoom,
   updateRoom,
   deleteRoom,

@@ -7,6 +7,7 @@ const blockService = require('./block.service');
 const rateService = require('./rate.service');
 const invoiceService = require('./invoice.service');
 const emailService = require('./email.service');
+const settingsService = require('./settings.service');
 const auditService = require('./audit.service');
 const {
   BOOKING_STATUS,
@@ -110,8 +111,14 @@ const createBooking = async (payload, actor) => {
     message: `Booking ${booking.bookingReference} created.`,
   });
 
-  await emailService.sendBookingCreated(booking);
-  await recordEmailSent(booking, 'Booking Created');
+  await roomService.syncRoomStatus(room._id);
+
+  const settings = await settingsService.getSettings();
+  if (settings.notifications?.sendBookingConfirmation !== false) {
+    const recipients = [...new Set([booking.guest.email, actor.email].filter(Boolean))];
+    await emailService.sendBookingCreated(booking, recipients);
+    await recordEmailSent(booking, 'Booking Created');
+  }
 
   let invoice = null;
   try {
@@ -334,6 +341,7 @@ const cancelBooking = async (bookingId, { reason }, actor) => {
   booking.cancelledBy = actor._id;
   booking.cancelledAt = new Date();
   await booking.save();
+  await roomService.syncRoomStatus(booking.room);
 
   await auditService.record({
     action: AUDIT_ACTIONS.BOOKING_CANCELLED,
@@ -364,6 +372,7 @@ const checkIn = async (bookingId, actor) => {
   booking.status = BOOKING_STATUS.CHECKED_IN;
   booking.checkedInAt = new Date();
   await booking.save();
+  await roomService.syncRoomStatus(booking.room);
 
   await auditService.record({
     action: AUDIT_ACTIONS.CHECKED_IN,
@@ -390,6 +399,7 @@ const checkOut = async (bookingId, actor) => {
   booking.status = BOOKING_STATUS.CHECKED_OUT;
   booking.checkedOutAt = new Date();
   await booking.save();
+  await roomService.syncRoomStatus(booking.room);
 
   await auditService.record({
     action: AUDIT_ACTIONS.CHECKED_OUT,
@@ -403,6 +413,28 @@ const checkOut = async (bookingId, actor) => {
   const invoice = await invoiceService.generateInvoiceForBooking(booking, { mode: 'createIfMissing' });
 
   return { booking, invoice };
+};
+
+const autoCheckOutDueBookings = async () => {
+  const dueBookings = await Booking.find({
+    status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN] },
+    departureDate: { $lte: new Date() },
+  });
+
+  for (const booking of dueBookings) {
+    booking.status = BOOKING_STATUS.CHECKED_OUT;
+    booking.checkedOutAt = new Date();
+    await booking.save();
+    await roomService.syncRoomStatus(booking.room);
+    await auditService.record({
+      action: AUDIT_ACTIONS.CHECKED_OUT,
+      booking,
+      actorType: ACTOR_TYPE.SYSTEM,
+      message: `${booking.bookingReference} automatically checked out at the departure time.`,
+    });
+  }
+
+  return dueBookings.length;
 };
 
 const generateInvoiceForBookingId = async (bookingId) => {
@@ -458,6 +490,7 @@ module.exports = {
   cancelBooking,
   checkIn,
   checkOut,
+  autoCheckOutDueBookings,
   generateInvoiceForBookingId,
   deleteBooking,
 };
