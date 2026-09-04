@@ -36,6 +36,17 @@ const dispatchCheckoutEmail = (booking) =>
       return null;
     });
 
+const dispatchCheckinEmail = (booking) =>
+  emailService.sendBookingCheckedIn(booking)
+    .then((sent) => {
+      if (sent) return recordEmailSent(booking, 'Booking Checked In');
+      return null;
+    })
+    .catch((error) => {
+      logger.warn(`Check-in email failed for ${booking.bookingReference}: ${error.message}`);
+      return null;
+    });
+
 const buildGuestPayload = (payload) => ({
   firstName: payload.firstName,
   lastName: payload.lastName,
@@ -446,6 +457,7 @@ const checkIn = async (bookingId, actor) => {
     actorLabel: actor.email,
     message: `${booking.bookingReference} checked in.`,
   });
+  dispatchCheckinEmail(booking);
 
   return booking;
 };

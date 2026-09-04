@@ -170,6 +170,35 @@ const sendBookingCancelled = (booking) => {
   });
 };
 
+const sendBookingCheckedIn = (booking) => {
+  const body = `
+    <p>Dear ${booking.guest.firstName},</p>
+    <p>Your arrival has been <strong>checked in</strong>.</p>
+    ${detailRow('Booking Reference', booking.bookingReference)}
+    ${detailRow('Camp', booking.campName)}
+    ${detailRow('Room', `Block ${booking.blockName} Room ${booking.roomNumber}`)}
+    ${detailRow('Check-in Date', formatDate(booking.checkedInAt))}
+    ${detailRow('Departure Date', formatDate(booking.departureDate))}
+    ${detailRow('Status', booking.status)}
+  `;
+  return sendEmail({
+    to: booking.guest.email,
+    subject: `Checked In - ${booking.bookingReference}`,
+    html: layout('Accommodation Check-in', body),
+    text: [
+      `Dear ${booking.guest.firstName},`,
+      '',
+      'Your arrival has been checked in.',
+      `Booking Reference: ${booking.bookingReference}`,
+      `Camp: ${booking.campName}`,
+      `Room: Block ${booking.blockName} Room ${booking.roomNumber}`,
+      `Check-in Date: ${formatDate(booking.checkedInAt)}`,
+      `Departure Date: ${formatDate(booking.departureDate)}`,
+      `Status: ${booking.status}`,
+    ].join('\n'),
+  });
+};
+
 const sendBookingCheckedOut = (booking) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
@@ -235,6 +264,7 @@ module.exports = {
   sendBookingCreated,
   sendBookingUpdated,
   sendBookingCancelled,
+  sendBookingCheckedIn,
   sendBookingCheckedOut,
   sendInvoiceGenerated,
 };
