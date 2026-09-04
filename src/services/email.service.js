@@ -6,13 +6,16 @@ let transporter = null;
 
 const getTransporter = () => {
   if (transporter) return transporter;
-  if (!env.smtp.host || !env.smtp.user) return null;
+  if (!env.smtp.host || !env.smtp.user || !env.smtp.pass) return null;
 
   transporter = nodemailer.createTransport({
     host: env.smtp.host,
     port: env.smtp.port,
     secure: env.smtp.secure,
-    auth: { user: env.smtp.user, pass: env.smtp.pass },
+    auth: { user: env.smtp.user, pass: env.smtp.pass.replace(/\s+/g, '') },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
   return transporter;
 };

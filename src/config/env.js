@@ -38,12 +38,12 @@ const env = {
     port: parseInt(process.env.SMTP_PORT, 10) || 587,
     secure: toBool(process.env.SMTP_SECURE, false),
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    pass: process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : undefined,
   },
 
   emailFrom: {
     name: process.env.EMAIL_FROM_NAME || 'CARE Kenya Dadaab Accommodation',
-    address: process.env.EMAIL_FROM_ADDRESS || 'no-reply@example.com',
+    address: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER || 'no-reply@example.com',
   },
 
   support: {

@@ -9,6 +9,7 @@ const emailService = require('./email.service');
 const auditService = require('./audit.service');
 const { ACTOR_TYPE, AUDIT_ACTIONS, INVOICE_PAYMENT_STATUS_VALUES } = require('../utils/constants');
 const { calculateNights } = require('../utils/dates');
+const logger = require('../utils/logger');
 
 const buildInvoiceSnapshot = async (booking) => {
   const settings = await settingsService.getSettings();
@@ -97,17 +98,20 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing' } =
   });
 
   const officer = await User.findById(booking.createdBy).select('email firstName lastName');
-  await emailService.sendInvoiceGenerated(booking, invoice, officer);
-  await auditService.record({
-    action: AUDIT_ACTIONS.EMAIL_SENT,
-    booking,
-    actorType: ACTOR_TYPE.SYSTEM,
-    metadata: {
-      emailType: 'Invoice Generated',
-      to: [booking.guest.email, officer?.email].filter(Boolean),
-    },
-    message: `Invoice email dispatched for ${booking.bookingReference}.`,
-  });
+  emailService.sendInvoiceGenerated(booking, invoice, officer)
+    .then(() => auditService.record({
+      action: AUDIT_ACTIONS.EMAIL_SENT,
+      booking,
+      actorType: ACTOR_TYPE.SYSTEM,
+      metadata: {
+        emailType: 'Invoice Generated',
+        to: [booking.guest.email, officer?.email].filter(Boolean),
+      },
+      message: `Invoice email dispatched for ${booking.bookingReference}.`,
+    }))
+    .catch((error) => {
+      logger.warn(`Invoice email failed: ${error.message}`);
+    });
 
   return invoice;
 };

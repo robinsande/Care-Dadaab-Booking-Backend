@@ -9,6 +9,7 @@ const invoiceService = require('./invoice.service');
 const emailService = require('./email.service');
 const settingsService = require('./settings.service');
 const auditService = require('./audit.service');
+const logger = require('../utils/logger');
 const {
   BOOKING_STATUS,
   ACTOR_TYPE,
@@ -118,8 +119,11 @@ const createBooking = async (payload, actor) => {
   const settings = await settingsService.getSettings();
   if (settings.notifications?.sendBookingConfirmation !== false) {
     const recipients = [...new Set([booking.guest.email, actor.email].filter(Boolean))];
-    await emailService.sendBookingCreated(booking, recipients);
-    await recordEmailSent(booking, 'Booking Created');
+    emailService.sendBookingCreated(booking, recipients)
+      .then(() => recordEmailSent(booking, 'Booking Created'))
+      .catch((error) => {
+        logger.warn(`Booking confirmation email failed: ${error.message}`);
+      });
   }
 
   let invoice = null;
