@@ -25,7 +25,8 @@ const signToken = (user) =>
  * @throws {ApiError} 401 on invalid credentials or inactive account.
  */
 const login = async ({ email, password }) => {
-  const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
   if (!user || !(await user.comparePassword(password))) {
     throw ApiError.unauthorized('Invalid email or password.');

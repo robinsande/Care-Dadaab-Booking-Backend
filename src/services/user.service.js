@@ -77,7 +77,7 @@ const resetPassword = async (id, actor) => {
     throw ApiError.badRequest('You cannot reset your own password from user management.');
   }
   const user = await getUserById(id);
-  const temporaryPassword = `CARE-${crypto.randomBytes(5).toString('base64url')}`;
+  const temporaryPassword = `CARE-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
   user.password = temporaryPassword;
   user.mustChangePassword = true;
   await user.save();
