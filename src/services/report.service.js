@@ -1,7 +1,10 @@
 const { Booking, Room, Invoice, Camp } = require('../models');
 const ApiError = require('../utils/ApiError');
 const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
 const {
   REPORT_TYPES,
   REPORT_TYPE_VALUES,
@@ -267,14 +270,54 @@ const normalizeReportRows = (report) => {
   );
 };
 
-const flattenRowsToXlsxBuffer = (report) => {
+const flattenRowsToXlsxBuffer = async (report) => {
   const rows = normalizeReportRows(report);
-  const worksheet = rows.length
-    ? XLSX.utils.json_to_sheet(rows)
-    : XLSX.utils.aoa_to_sheet([['No data']]);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Report');
-  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Report');
+  const logoPath = path.resolve(__dirname, '../../assets/care-logo.png');
+
+  worksheet.mergeCells('A1:F1');
+  worksheet.getCell('A1').value = 'CARE Accommodation Management System';
+  worksheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+  worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF54206F' } };
+  worksheet.getCell('A1').alignment = { vertical: 'middle' };
+  worksheet.getRow(1).height = 28;
+
+  worksheet.mergeCells('A2:F2');
+  worksheet.getCell('A2').value = report.title || 'Report';
+  worksheet.getCell('A2').font = { bold: true, size: 13, color: { argb: 'FFE8721E' } };
+  worksheet.getCell('A3').value = 'Generated';
+  worksheet.getCell('B3').value = new Date().toLocaleString('en-GB');
+
+  if (fs.existsSync(logoPath)) {
+    const imageId = workbook.addImage({ filename: logoPath, extension: 'png' });
+    worksheet.addImage(imageId, { tl: { col: 6.4, row: 0.2 }, ext: { width: 110, height: 42 } });
+  }
+
+  if (!rows.length) {
+    worksheet.getCell('A5').value = 'No data';
+  } else {
+    const headers = Object.keys(rows[0]);
+    worksheet.getRow(5).values = headers;
+    worksheet.getRow(5).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8721E' } };
+    rows.forEach((row) => {
+      worksheet.addRow(headers.map((header) => {
+        const value = row[header];
+        return value && typeof value === 'object' ? JSON.stringify(value) : value ?? '';
+      }));
+    });
+    worksheet.columns.forEach((column) => {
+      let width = 12;
+      column.eachCell({ includeEmpty: true }, (cell) => {
+        width = Math.min(Math.max(width, String(cell.value ?? '').length + 2), 36);
+      });
+      column.width = width;
+    });
+    worksheet.autoFilter = { from: 'A5', to: `${String.fromCharCode(64 + headers.length)}${rows.length + 5}` };
+  }
+
+  return workbook.xlsx.writeBuffer();
 };
 
 const flattenRowsToPdfBuffer = (report) =>
@@ -286,8 +329,14 @@ const flattenRowsToPdfBuffer = (report) =>
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    doc.fontSize(16).text(report.title || 'Report', { underline: true });
-    doc.moveDown();
+    const logoPath = path.resolve(__dirname, '../../assets/care-logo.png');
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, 40, 32, { width: 110, height: 48 });
+    }
+    doc.fillColor('#54206F').fontSize(18).text('CARE Accommodation Management System', 165, 42);
+    doc.fillColor('#E8721E').fontSize(14).text(report.title || 'Report', 40, 100);
+    doc.fillColor('#1f2933');
+    doc.moveDown(2);
 
     const rows = normalizeReportRows(report);
     if (rows.length === 0) {
@@ -331,7 +380,7 @@ const generateReport = async (type, query = {}) => {
       format: 'xlsx',
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       filename: `${type}.xlsx`,
-      data: flattenRowsToXlsxBuffer(report),
+      data: await flattenRowsToXlsxBuffer(report),
     };
   }
 
