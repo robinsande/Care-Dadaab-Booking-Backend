@@ -32,6 +32,7 @@ const buildGuestPayload = (payload) => ({
   organisation: payload.organisation,
   gender: payload.gender,
   contractType: payload.contractType,
+  kenyaOffice: payload.kenyaOffice,
   departureCountry: payload.departureCountry,
 });
 

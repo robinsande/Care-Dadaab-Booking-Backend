@@ -197,7 +197,19 @@ const reportArrivals = async (query) => {
       'bookingReference guest campName blockName roomNumber arrivalDate departureDate status stayType'
     );
 
-  return { title: 'Arrivals', count: bookings.length, rows: bookings };
+  return {
+    title: 'Booking Guest Log',
+    count: bookings.length,
+    rows: bookings.map((booking) => ({
+      date: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
+      guestName: `${booking.guest?.firstName || ''} ${booking.guest?.lastName || ''}`.trim(),
+      checkIn: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
+      checkOut: new Date(booking.departureDate).toLocaleDateString('en-GB'),
+      contactNumber: booking.guest?.phone || '',
+      room: `Block ${booking.blockName} Room ${booking.roomNumber}`,
+      status: booking.status,
+    })),
+  };
 };
 
 const reportDepartures = async (query) => {
@@ -214,7 +226,46 @@ const reportDepartures = async (query) => {
       'bookingReference guest campName blockName roomNumber arrivalDate departureDate status stayType'
     );
 
-  return { title: 'Departures', count: bookings.length, rows: bookings };
+  return {
+    title: 'Booking Guest Log',
+    count: bookings.length,
+    rows: bookings.map((booking) => ({
+      date: new Date(booking.departureDate).toLocaleDateString('en-GB'),
+      guestName: `${booking.guest?.firstName || ''} ${booking.guest?.lastName || ''}`.trim(),
+      checkIn: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
+      checkOut: new Date(booking.departureDate).toLocaleDateString('en-GB'),
+      contactNumber: booking.guest?.phone || '',
+      room: `Block ${booking.blockName} Room ${booking.roomNumber}`,
+      status: booking.status,
+    })),
+  };
+};
+
+const reportReservationLog = async (query) => {
+  const filter = {
+    status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN] },
+    ...buildDateFilter(query, 'arrivalDate'),
+  };
+  if (query.campId) filter.camp = query.campId;
+  if (query.stayType) filter.stayType = query.stayType;
+
+  const bookings = await Booking.find(filter)
+    .sort({ arrivalDate: 1, createdAt: 1 })
+    .select('guest arrivalDate departureDate status');
+
+  return {
+    title: 'Reservation Log',
+    count: bookings.length,
+    rows: bookings.map((booking, index) => ({
+      tableNo: index + 1,
+      customerName: `${booking.guest?.firstName || ''} ${booking.guest?.lastName || ''}`.trim(),
+      persons: 1,
+      phoneNumber: booking.guest?.phone || '',
+      arrivalTime: new Date(booking.arrivalDate).toLocaleString('en-GB'),
+      checkoutTime: new Date(booking.departureDate).toLocaleString('en-GB'),
+      status: booking.status,
+    })),
+  };
 };
 
 const generators = {
@@ -227,6 +278,7 @@ const generators = {
   [REPORT_TYPES.OUTSTANDING_INVOICES]: reportOutstandingInvoices,
   [REPORT_TYPES.ARRIVALS]: reportArrivals,
   [REPORT_TYPES.DEPARTURES]: reportDepartures,
+  [REPORT_TYPES.RESERVATION_LOG]: reportReservationLog,
 };
 
 const flattenRowsToCsv = (report) => {
@@ -283,11 +335,63 @@ const displayValue = (value) => {
   return value == null ? '' : String(value);
 };
 
+const RESERVATION_COLUMNS = [
+  { key: 'tableNo', label: 'Table No', width: 12 },
+  { key: 'customerName', label: 'Customer Name', width: 24 },
+  { key: 'persons', label: '# of Person', width: 12 },
+  { key: 'phoneNumber', label: 'Phone #', width: 18 },
+  { key: 'arrivalTime', label: 'Arrival Time', width: 18 },
+  { key: 'checkoutTime', label: 'Checkout Time', width: 18 },
+  { key: 'status', label: 'Status', width: 14 },
+];
+
+const flattenReservationLogToXlsxBuffer = async (rows, logoPath) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Reservation Log');
+
+  worksheet.mergeCells('A1:G1');
+  worksheet.getCell('A1').value = 'Reservation Log';
+  worksheet.getCell('A1').font = { bold: true, size: 20, color: { argb: 'FFFFFF00' } };
+  worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
+  worksheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+  worksheet.getRow(1).height = 34;
+  worksheet.getCell('A2').value = `Date: ${new Date().toLocaleDateString('en-GB')}`;
+
+  if (fs.existsSync(logoPath)) {
+    const imageId = workbook.addImage({ filename: logoPath, extension: 'png' });
+    worksheet.addImage(imageId, { tl: { col: 6.25, row: 0.12 }, ext: { width: 80, height: 30 } });
+  }
+
+  const headerRow = worksheet.getRow(4);
+  headerRow.values = RESERVATION_COLUMNS.map((column) => column.label);
+  headerRow.font = { bold: true, size: 10, color: { argb: 'FFFFFF00' } };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
+  headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+  headerRow.height = 30;
+
+  const printableRows = [...rows];
+  while (printableRows.length < 20) printableRows.push({});
+  printableRows.forEach((row) => {
+    const excelRow = worksheet.addRow(RESERVATION_COLUMNS.map((column) => displayValue(row[column.key])));
+    excelRow.height = 22;
+    excelRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    excelRow.eachCell((cell) => {
+      cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
+    });
+  });
+  RESERVATION_COLUMNS.forEach((column, index) => { worksheet.getColumn(index + 1).width = column.width; });
+  return workbook.xlsx.writeBuffer();
+};
+
 const flattenRowsToXlsxBuffer = async (report) => {
   const rows = normalizeReportRows(report);
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Report');
   const logoPath = path.resolve(__dirname, '../../assets/care-logo.png');
+
+  if (report.title === 'Reservation Log') {
+    return flattenReservationLogToXlsxBuffer(rows, logoPath);
+  }
 
   worksheet.mergeCells('A1:F1');
   worksheet.getCell('A1').value = 'CARE Accommodation Management System';
@@ -311,7 +415,6 @@ const flattenRowsToXlsxBuffer = async (report) => {
     worksheet.getCell('A5').value = 'No data';
   } else {
     const headers = Object.keys(rows[0]);
-    worksheet.getRow(5).values = headers;
     worksheet.getRow(5).values = headers.map(displayHeader);
     worksheet.getRow(5).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     worksheet.getRow(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB42318' } };
@@ -355,6 +458,43 @@ const flattenRowsToPdfBuffer = (report) =>
     doc.on('error', reject);
 
     const logoPath = path.resolve(__dirname, '../../assets/care-logo.png');
+    const rows = normalizeReportRows(report);
+
+    if (report.title === 'Reservation Log') {
+      const tableLeft = 40;
+      const tableTop = 112;
+      const columnWidths = [58, 125, 65, 75, 70, 70, 52];
+      const headerHeight = 30;
+      const rowHeight = 22;
+      const labels = RESERVATION_COLUMNS.map((column) => column.label);
+      const drawCell = (x, y, width, height, fill, text, color = '#111827', bold = false) => {
+        doc.rect(x, y, width, height).fillAndStroke(fill, '#111827');
+        doc.fillColor(color).font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(7).text(text, x + 3, y + 7, { width: width - 6, height: height - 8, align: 'center', ellipsis: true });
+      };
+
+      doc.rect(tableLeft, 32, 515, 48).fill('#173B63');
+      doc.fillColor('#FFFF00').font('Helvetica-Bold').fontSize(22).text('Reservation Log', tableLeft, 45, { width: 515, align: 'center' });
+      doc.fillColor('#111827').font('Helvetica').fontSize(9).text(`Date: ${new Date().toLocaleDateString('en-GB')}`, tableLeft, 90);
+      if (fs.existsSync(logoPath)) doc.image(logoPath, 462, 38, { width: 72, height: 34 });
+
+      labels.forEach((label, index) => {
+        const x = tableLeft + columnWidths.slice(0, index).reduce((sum, width) => sum + width, 0);
+        drawCell(x, tableTop, columnWidths[index], headerHeight, '#173B63', label, '#FFFF00', true);
+      });
+
+      const printableRows = [...rows];
+      while (printableRows.length < 20) printableRows.push({});
+      printableRows.forEach((row, rowIndex) => {
+        const y = tableTop + headerHeight + rowIndex * rowHeight;
+        RESERVATION_COLUMNS.forEach((column, columnIndex) => {
+          const x = tableLeft + columnWidths.slice(0, columnIndex).reduce((sum, width) => sum + width, 0);
+          drawCell(x, y, columnWidths[columnIndex], rowHeight, '#FFFFFF', displayValue(row[column.key]));
+        });
+      });
+      doc.end();
+      return;
+    }
+
     if (fs.existsSync(logoPath)) {
       doc.image(logoPath, 40, 32, { width: 110, height: 48 });
     }
@@ -363,7 +503,6 @@ const flattenRowsToPdfBuffer = (report) =>
     doc.fillColor('#1f2933');
     doc.moveDown(2);
 
-    const rows = normalizeReportRows(report);
     if (rows.length === 0) {
       doc.fontSize(12).text('No data');
       doc.end();

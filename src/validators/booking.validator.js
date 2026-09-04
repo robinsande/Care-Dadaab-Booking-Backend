@@ -18,6 +18,16 @@ const guestFieldRules = [
     .isIn(GENDER_VALUES)
     .withMessage(`Gender must be one of: ${GENDER_VALUES.join(', ')}.`),
   body('contractType').optional().trim(),
+  body('kenyaOffice').optional().trim(),
+  body('kenyaOffice').custom((value, { req }) => {
+    const origin = String(req.body.departureCountry || '').trim().toLowerCase();
+    const needsOffice = req.body.contractType === 'CARE Staff'
+      && ['kenya', 'kenyan', 'local (kenyan)'].includes(origin);
+    if (needsOffice && !['Nakuru', 'Nairobi', 'Kisumu', 'Regional Office'].includes(value)) {
+      throw new Error('Select a valid Kenya office for CARE Staff.');
+    }
+    return true;
+  }),
   body('departureCountry').optional().trim(),
   body('remarks').optional().trim(),
   body('driverPickup').optional().isBoolean().withMessage('driverPickup must be a boolean.'),
@@ -72,6 +82,16 @@ const updateBookingRules = [
   body('reasonForVisit').optional().trim(),
   body('gender').optional().isIn(GENDER_VALUES),
   body('contractType').optional().trim(),
+  body('kenyaOffice').optional().trim(),
+  body('kenyaOffice').custom((value, { req }) => {
+    const origin = String(req.body.departureCountry || '').trim().toLowerCase();
+    const needsOffice = req.body.contractType === 'CARE Staff'
+      && ['kenya', 'kenyan', 'local (kenyan)'].includes(origin);
+    if (needsOffice && !['Nakuru', 'Nairobi', 'Kisumu', 'Regional Office'].includes(value)) {
+      throw new Error('Select a valid Kenya office for CARE Staff.');
+    }
+    return true;
+  }),
   body('departureCountry').optional().trim(),
   body('remarks').optional().trim(),
   body('driverPickup').optional().isBoolean(),

@@ -101,6 +101,7 @@ const REPORT_TYPES = Object.freeze({
   OUTSTANDING_INVOICES: 'outstanding-invoices',
   ARRIVALS: 'arrivals',
   DEPARTURES: 'departures',
+  RESERVATION_LOG: 'reservation-log',
 });
 
 const REPORT_TYPE_VALUES = Object.freeze(Object.values(REPORT_TYPES));
