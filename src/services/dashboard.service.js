@@ -10,9 +10,12 @@ const { startOfDay, endOfDay } = require('../utils/dates');
 const getOccupiedRoomCount = async () => {
   const [bookingRoomIds, roomStatusIds] = await Promise.all([
     Booking.distinct('room', {
-      status: BOOKING_STATUS.CHECKED_IN,
+      $or: [
+        { status: { $regex: /^checked in$/i } },
+        { checkedInAt: { $ne: null }, checkedOutAt: null },
+      ],
     }),
-    Room.distinct('_id', { status: ROOM_STATUS.OCCUPIED }),
+    Room.distinct('_id', { status: { $regex: /^occupied$/i } }),
   ]);
 
   return new Set([...bookingRoomIds, ...roomStatusIds].map(String)).size;
