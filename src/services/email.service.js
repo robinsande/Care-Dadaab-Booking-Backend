@@ -30,6 +30,40 @@ const formatDate = (date) =>
 
 const sendEmail = async ({ to, subject, html, text }) => {
   const from = `"${env.emailFrom.name}" <${env.emailFrom.address}>`;
+  const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
+
+  if (env.brevoApiKey) {
+    try {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'api-key': env.brevoApiKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: env.emailFrom.name, email: env.emailFrom.address },
+          to: recipients.map((email) => ({ email })),
+          subject,
+          htmlContent: html,
+          textContent: text,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Brevo API ${response.status}: ${errorBody.slice(0, 300)}`);
+      }
+
+      logger.info(`Email sent via Brevo API to ${recipients.join(', ')} | Subject: ${subject}`);
+      return true;
+    } catch (error) {
+      logger.error(`Failed to send email via Brevo API to ${recipients.join(', ')}: ${error.message}`);
+      return false;
+    }
+  }
+
   const activeTransporter = getTransporter();
 
   if (!activeTransporter) {
