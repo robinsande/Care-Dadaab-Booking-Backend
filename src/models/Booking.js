@@ -16,6 +16,7 @@ const guestSchema = new mongoose.Schema(
     gender: { type: String, enum: GENDER_VALUES },
     contractType: { type: String, trim: true },
     kenyaOffice: { type: String, trim: true },
+    internationalCountry: { type: String, trim: true },
     departureCountry: { type: String, trim: true },
   },
   { _id: false }

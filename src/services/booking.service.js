@@ -33,6 +33,7 @@ const buildGuestPayload = (payload) => ({
   gender: payload.gender,
   contractType: payload.contractType,
   kenyaOffice: payload.kenyaOffice,
+  internationalCountry: payload.internationalCountry,
   departureCountry: payload.departureCountry,
 });
 
@@ -232,6 +233,8 @@ const updateBooking = async (bookingId, payload, actor) => {
       'gender',
       'contractType',
       'departureCountry',
+      'kenyaOffice',
+      'internationalCountry',
     ];
     guestFields.forEach((field) => {
       if (payload[field] !== undefined) booking.guest[field] = payload[field];
@@ -249,6 +252,8 @@ const updateBooking = async (bookingId, payload, actor) => {
       'gender',
       'contractType',
       'departureCountry',
+      'kenyaOffice',
+      'internationalCountry',
     ];
     guestFields.forEach((field) => {
       if (payload[field] !== undefined) booking.guest[field] = payload[field];

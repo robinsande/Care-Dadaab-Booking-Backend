@@ -19,6 +19,7 @@ const guestFieldRules = [
     .withMessage(`Gender must be one of: ${GENDER_VALUES.join(', ')}.`),
   body('contractType').optional().trim(),
   body('kenyaOffice').optional().trim(),
+  body('internationalCountry').optional().trim(),
   body('kenyaOffice').custom((value, { req }) => {
     const origin = String(req.body.departureCountry || '').trim().toLowerCase();
     const needsOffice = req.body.contractType === 'CARE Staff'
@@ -83,6 +84,7 @@ const updateBookingRules = [
   body('gender').optional().isIn(GENDER_VALUES),
   body('contractType').optional().trim(),
   body('kenyaOffice').optional().trim(),
+  body('internationalCountry').optional().trim(),
   body('kenyaOffice').custom((value, { req }) => {
     const origin = String(req.body.departureCountry || '').trim().toLowerCase();
     const needsOffice = req.body.contractType === 'CARE Staff'
