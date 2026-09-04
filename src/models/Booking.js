@@ -117,6 +117,7 @@ const bookingSchema = new mongoose.Schema(
 
     checkedInAt: { type: Date, default: null },
     checkedOutAt: { type: Date, default: null },
+    checkoutReason: { type: String, trim: true, default: null },
   },
   { timestamps: true }
 );

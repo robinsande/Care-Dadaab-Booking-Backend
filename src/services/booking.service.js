@@ -397,7 +397,7 @@ const checkIn = async (bookingId, actor) => {
   return booking;
 };
 
-const checkOut = async (bookingId, actor) => {
+const checkOut = async (bookingId, actor, checkoutReason = null) => {
   const booking = await Booking.findById(bookingId);
   if (!booking) throw ApiError.notFound('Booking not found.');
 
@@ -409,6 +409,7 @@ const checkOut = async (bookingId, actor) => {
 
   booking.status = BOOKING_STATUS.CHECKED_OUT;
   booking.checkedOutAt = new Date();
+  booking.checkoutReason = checkoutReason || null;
   await booking.save();
   await roomService.syncRoomStatus(booking.room);
 

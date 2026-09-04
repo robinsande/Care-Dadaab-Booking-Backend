@@ -54,7 +54,7 @@ const checkIn = asyncHandler(async (req, res) => {
 });
 
 const checkOut = asyncHandler(async (req, res) => {
-  const result = await bookingService.checkOut(req.params.id, req.user);
+  const result = await bookingService.checkOut(req.params.id, req.user, req.body?.checkoutReason);
   sendSuccess(res, {
     message: 'Guest checked out. Invoice generated.',
     data: result,
