@@ -162,10 +162,8 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
   const html = layout('Invoice', body);
   const subject = `Invoice ${invoice.invoiceNumber} - ${invoice.bookingReference}`;
 
-  const results = [await sendEmail({ to: booking.guest.email, subject, html })];
-  if (officer && officer.email) {
-    results.push(await sendEmail({ to: officer.email, subject, html }));
-  }
+  const recipients = [booking.guest.email, officer && officer.email].filter(Boolean);
+  const results = await Promise.all(recipients.map((to) => sendEmail({ to, subject, html })));
   return results.every(Boolean);
 };
 
