@@ -170,6 +170,35 @@ const sendBookingCancelled = (booking) => {
   });
 };
 
+const sendBookingCheckedOut = (booking) => {
+  const body = `
+    <p>Dear ${booking.guest.firstName},</p>
+    <p>Your accommodation stay has been <strong>checked out</strong>.</p>
+    ${detailRow('Booking Reference', booking.bookingReference)}
+    ${detailRow('Camp', booking.campName)}
+    ${detailRow('Room', `Block ${booking.blockName} Room ${booking.roomNumber}`)}
+    ${detailRow('Check-out Date', formatDate(booking.checkedOutAt))}
+    ${booking.checkoutReason ? detailRow('Reason', booking.checkoutReason) : ''}
+    ${detailRow('Status', booking.status)}
+  `;
+  return sendEmail({
+    to: booking.guest.email,
+    subject: `Checked Out - ${booking.bookingReference}`,
+    html: layout('Accommodation Check-out', body),
+    text: [
+      `Dear ${booking.guest.firstName},`,
+      '',
+      'Your accommodation stay has been checked out.',
+      `Booking Reference: ${booking.bookingReference}`,
+      `Camp: ${booking.campName}`,
+      `Room: Block ${booking.blockName} Room ${booking.roomNumber}`,
+      `Check-out Date: ${formatDate(booking.checkedOutAt)}`,
+      booking.checkoutReason ? `Reason: ${booking.checkoutReason}` : '',
+      `Status: ${booking.status}`,
+    ].filter(Boolean).join('\n'),
+  });
+};
+
 const sendInvoiceGenerated = async (booking, invoice, officer) => {
   const payment = invoice.paymentInstructions || {};
   const body = `
@@ -206,5 +235,6 @@ module.exports = {
   sendBookingCreated,
   sendBookingUpdated,
   sendBookingCancelled,
+  sendBookingCheckedOut,
   sendInvoiceGenerated,
 };

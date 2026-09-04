@@ -25,6 +25,17 @@ const recordEmailSent = (booking, emailType) =>
     message: `${emailType} email dispatched to ${booking.guest.email}.`,
   });
 
+const dispatchCheckoutEmail = (booking) =>
+  emailService.sendBookingCheckedOut(booking)
+    .then((sent) => {
+      if (sent) return recordEmailSent(booking, 'Booking Checked Out');
+      return null;
+    })
+    .catch((error) => {
+      logger.warn(`Checkout email failed for ${booking.bookingReference}: ${error.message}`);
+      return null;
+    });
+
 const buildGuestPayload = (payload) => ({
   firstName: payload.firstName,
   lastName: payload.lastName,
@@ -465,6 +476,7 @@ const checkOut = async (bookingId, actor, checkoutReason = null) => {
   });
 
   const invoice = await invoiceService.generateInvoiceForBooking(booking, { mode: 'createIfMissing' });
+  dispatchCheckoutEmail(booking);
 
   return { booking, invoice };
 };
@@ -486,6 +498,7 @@ const autoCheckOutDueBookings = async () => {
       actorType: ACTOR_TYPE.SYSTEM,
       message: `${booking.bookingReference} automatically checked out at the departure time.`,
     });
+    dispatchCheckoutEmail(booking);
   }
 
   return dueBookings.length;
