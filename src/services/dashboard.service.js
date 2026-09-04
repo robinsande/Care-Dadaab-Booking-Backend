@@ -11,13 +11,16 @@ const getOccupiedRoomCount = async (date = new Date()) => {
   const dayStart = startOfDay(date);
   const dayEnd = endOfDay(date);
 
-  const occupiedRoomIds = await Booking.distinct('room', {
-    status: { $in: ACTIVE_BOOKING_STATUSES },
-    arrivalDate: { $lte: dayEnd },
-    departureDate: { $gt: dayStart },
-  });
+  const [bookingRoomIds, roomStatusIds] = await Promise.all([
+    Booking.distinct('room', {
+      status: { $in: ACTIVE_BOOKING_STATUSES },
+      arrivalDate: { $lte: dayEnd },
+      departureDate: { $gt: dayStart },
+    }),
+    Room.distinct('_id', { isActive: true, status: ROOM_STATUS.OCCUPIED }),
+  ]);
 
-  return occupiedRoomIds.length;
+  return new Set([...bookingRoomIds, ...roomStatusIds].map(String)).size;
 };
 
 const getDashboard = async () => {
@@ -29,6 +32,7 @@ const getDashboard = async () => {
     todaysDepartures,
     occupiedRooms,
     totalActiveRooms,
+    bookedRooms,
     maintenanceRooms,
     outstandingInvoices,
     recentBookings,
@@ -45,6 +49,11 @@ const getDashboard = async () => {
     }),
     getOccupiedRoomCount(),
     Room.countDocuments({ isActive: true, status: { $ne: ROOM_STATUS.MAINTENANCE } }),
+    Booking.distinct('room', {
+      status: BOOKING_STATUS.BOOKED,
+      arrivalDate: { $lte: todayEnd },
+      departureDate: { $gt: todayStart },
+    }),
     Room.countDocuments({ status: ROOM_STATUS.MAINTENANCE, isActive: true }),
     Invoice.countDocuments({ paymentStatus: INVOICE_PAYMENT_STATUS.UNPAID }),
     Booking.find()
@@ -74,7 +83,10 @@ const getDashboard = async () => {
     { $sort: { _id: 1 } },
   ]);
 
-  const availableRooms = Math.max(totalActiveRooms - occupiedRooms, 0);
+  const availableRooms = Math.max(
+    totalActiveRooms - occupiedRooms - new Set(bookedRooms.map(String)).size,
+    0,
+  );
 
   return {
     todaysArrivals,
