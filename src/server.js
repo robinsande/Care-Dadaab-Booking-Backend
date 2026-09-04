@@ -16,7 +16,9 @@ const start = async () => {
   await autoCheckOutDueBookings();
   await syncAllRoomStatuses();
   const checkoutSweep = setInterval(() => {
-    autoCheckOutDueBookings().catch((error) => logger.error(`Automatic checkout failed: ${error.message}`));
+    autoCheckOutDueBookings()
+      .then(() => syncAllRoomStatuses())
+      .catch((error) => logger.error(`Automatic checkout failed: ${error.message}`));
   }, 60 * 1000);
   checkoutSweep.unref();
 
