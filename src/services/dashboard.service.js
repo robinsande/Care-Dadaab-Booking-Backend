@@ -17,7 +17,7 @@ const getOccupiedRoomCount = async (date = new Date()) => {
       arrivalDate: { $lte: dayEnd },
       departureDate: { $gt: dayStart },
     }),
-    Room.distinct('_id', { isActive: true, status: ROOM_STATUS.OCCUPIED }),
+    Room.distinct('_id', { status: ROOM_STATUS.OCCUPIED }),
   ]);
 
   return new Set([...bookingRoomIds, ...roomStatusIds].map(String)).size;
@@ -83,10 +83,8 @@ const getDashboard = async () => {
     { $sort: { _id: 1 } },
   ]);
 
-  const availableRooms = Math.max(
-    totalActiveRooms - occupiedRooms - new Set(bookedRooms.map(String)).size,
-    0,
-  );
+  const bookedRoomCount = new Set(bookedRooms.map(String)).size;
+  const availableRooms = Math.max(totalActiveRooms - occupiedRooms - bookedRoomCount, 0);
 
   return {
     todaysArrivals,
