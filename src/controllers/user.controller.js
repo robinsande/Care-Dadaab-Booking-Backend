@@ -25,9 +25,17 @@ const updateUser = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'User updated.', data: user });
 });
 
+const resetPassword = asyncHandler(async (req, res) => {
+  const result = await userService.resetPassword(req.params.id, req.user);
+  sendSuccess(res, {
+    message: 'Temporary password generated.',
+    data: { user: result.user, temporaryPassword: result.temporaryPassword },
+  });
+});
+
 const deactivateUser = asyncHandler(async (req, res) => {
   await userService.deactivateUser(req.params.id, req.user);
   sendSuccess(res, { message: 'User deactivated.' });
 });
 
-module.exports = { listUsers, getUser, createUser, updateUser, deactivateUser };
+module.exports = { listUsers, getUser, createUser, updateUser, resetPassword, deactivateUser };

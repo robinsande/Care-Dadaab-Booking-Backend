@@ -1,4 +1,5 @@
 const { User } = require('../models');
+const crypto = require('crypto');
 const ApiError = require('../utils/ApiError');
 const auditService = require('./audit.service');
 const { ACTOR_TYPE, AUDIT_ACTIONS } = require('../utils/constants');
@@ -71,6 +72,26 @@ const updateUser = async (id, data, actor) => {
   return user;
 };
 
+const resetPassword = async (id, actor) => {
+  if (actor && actor._id.toString() === id) {
+    throw ApiError.badRequest('You cannot reset your own password from user management.');
+  }
+  const user = await getUserById(id);
+  const temporaryPassword = `CARE-${crypto.randomBytes(5).toString('base64url')}`;
+  user.password = temporaryPassword;
+  user.mustChangePassword = true;
+  await user.save();
+  await auditService.record({
+    action: AUDIT_ACTIONS.USER_UPDATED,
+    actorType: ACTOR_TYPE.USER,
+    actor,
+    actorLabel: actor && actor.email,
+    metadata: { userId: user._id, passwordReset: true },
+    message: `Password reset for ${user.email}.`,
+  });
+  return { user, temporaryPassword };
+};
+
 /**
  * Deactivate (soft delete) a user. Staff accounts are never hard-deleted so
  * historical audit references remain intact. Prevents self-deactivation.
@@ -96,4 +117,4 @@ const deactivateUser = async (id, actor) => {
   return user;
 };
 
-module.exports = { listUsers, getUserById, createUser, updateUser, deactivateUser };
+module.exports = { listUsers, getUserById, createUser, updateUser, resetPassword, deactivateUser };

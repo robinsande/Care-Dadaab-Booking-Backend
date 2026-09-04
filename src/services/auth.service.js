@@ -83,6 +83,7 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
   }
 
   user.password = newPassword;
+  user.mustChangePassword = false;
   await user.save();
 };
 

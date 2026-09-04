@@ -51,6 +51,10 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: {
       type: Date,
     },
+    mustChangePassword: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
