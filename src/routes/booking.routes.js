@@ -27,6 +27,7 @@ router.post(
 router.post('/:id/check-in', validate([mongoIdParam('id')]), bookingController.checkIn);
 router.post('/:id/check-out', validate([mongoIdParam('id')]), bookingController.checkOut);
 router.post('/:id/generate-invoice', validate([mongoIdParam('id')]), bookingController.generateInvoice);
+router.post('/:id/resend-emails', validate([mongoIdParam('id')]), bookingController.resendEmails);
 router.delete('/:id', validate([mongoIdParam('id')]), superAdminOnly, bookingController.deleteBooking);
 
 module.exports = router;

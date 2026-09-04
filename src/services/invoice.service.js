@@ -48,7 +48,7 @@ const buildInvoiceSnapshot = async (booking) => {
   };
 };
 
-const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing' } = {}) => {
+const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', notify = true } = {}) => {
   const snapshot = await buildInvoiceSnapshot(booking);
 
   if (mode === 'createIfMissing') {
@@ -97,23 +97,30 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing' } =
     message: `Invoice ${invoice.invoiceNumber} generated for ${booking.bookingReference}.`,
   });
 
-  const officer = await User.findById(booking.createdBy).select('email firstName lastName');
-  emailService.sendInvoiceGenerated(booking, invoice, officer)
-    .then(() => auditService.record({
-      action: AUDIT_ACTIONS.EMAIL_SENT,
-      booking,
-      actorType: ACTOR_TYPE.SYSTEM,
-      metadata: {
-        emailType: 'Invoice Generated',
-        to: [booking.guest.email, officer?.email].filter(Boolean),
-      },
-      message: `Invoice email dispatched for ${booking.bookingReference}.`,
-    }))
-    .catch((error) => {
-      logger.warn(`Invoice email failed: ${error.message}`);
-    });
+  if (notify) {
+    const officer = await User.findById(booking.createdBy).select('email firstName lastName');
+    emailService.sendInvoiceGenerated(booking, invoice, officer)
+      .then(() => auditService.record({
+        action: AUDIT_ACTIONS.EMAIL_SENT,
+        booking,
+        actorType: ACTOR_TYPE.SYSTEM,
+        metadata: {
+          emailType: 'Invoice Generated',
+          to: [booking.guest.email, officer?.email].filter(Boolean),
+        },
+        message: `Invoice email dispatched for ${booking.bookingReference}.`,
+      }))
+      .catch((error) => {
+        logger.warn(`Invoice email failed: ${error.message}`);
+      });
+  }
 
   return invoice;
+};
+
+const resendInvoiceEmail = async (booking, invoice) => {
+  const officer = await User.findById(booking.createdBy).select('email firstName lastName');
+  return emailService.sendInvoiceGenerated(booking, invoice, officer);
 };
 
 const listInvoices = async (query = {}) => {
@@ -263,6 +270,7 @@ module.exports = {
   generateInvoiceForBooking,
   listInvoices,
   getInvoiceById,
+  resendInvoiceEmail,
   updatePaymentStatus,
   generateInvoicePdfBuffer,
 };

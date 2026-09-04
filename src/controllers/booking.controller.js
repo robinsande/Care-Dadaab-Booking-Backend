@@ -38,6 +38,18 @@ const generateInvoice = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Invoice generated.', data: invoice });
 });
 
+const resendEmails = asyncHandler(async (req, res) => {
+  const data = await bookingService.resendBookingEmails(req.params.id, req.user);
+  const allSent = data.bookingEmailSent && data.invoiceEmailSent;
+  sendSuccess(res, {
+    statusCode: 200,
+    message: allSent
+      ? 'Booking confirmation and invoice emails sent.'
+      : 'One or more emails could not be sent. Check the email service logs.',
+    data,
+  });
+});
+
 const updateBooking = asyncHandler(async (req, res) => {
   const booking = await bookingService.updateBooking(req.params.id, req.body, req.user);
   sendSuccess(res, { message: 'Booking updated.', data: booking });
@@ -75,5 +87,6 @@ module.exports = {
   checkIn,
   checkOut,
   generateInvoice,
+  resendEmails,
   deleteBooking,
 };

@@ -142,6 +142,43 @@ const createBooking = async (payload, actor) => {
   return { booking, invoice };
 };
 
+const resendBookingEmails = async (bookingId, actor) => {
+  const booking = await Booking.findById(bookingId);
+  if (!booking) throw ApiError.notFound('Booking not found.');
+
+  const invoice = await invoiceService.generateInvoiceForBooking(booking, {
+    mode: 'createIfMissing',
+    notify: false,
+  });
+  const recipients = [...new Set([booking.guest.email, actor.email].filter(Boolean))];
+  const [bookingEmailSent, invoiceEmailSent] = await Promise.all([
+    emailService.sendBookingCreated(booking, recipients),
+    invoiceService.resendInvoiceEmail(booking, invoice),
+  ]);
+
+  await auditService.record({
+    action: AUDIT_ACTIONS.EMAIL_SENT,
+    booking,
+    actorType: ACTOR_TYPE.USER,
+    actor,
+    actorLabel: actor.email,
+    metadata: {
+      emailType: 'Booking and Invoice Resent',
+      bookingEmailSent,
+      invoiceEmailSent,
+      to: recipients,
+    },
+    message: `Booking and invoice emails resent for ${booking.bookingReference}.`,
+  });
+
+  return {
+    bookingReference: booking.bookingReference,
+    invoiceNumber: invoice.invoiceNumber,
+    bookingEmailSent,
+    invoiceEmailSent,
+  };
+};
+
 const listBookings = async (query = {}) => {
   const filter = {};
   if (query.status) filter.status = query.status;
@@ -500,6 +537,7 @@ const deleteBooking = async (bookingId, actor) => {
 
 module.exports = {
   createBooking,
+  resendBookingEmails,
   listBookings,
   getBookingById,
   updateBooking,

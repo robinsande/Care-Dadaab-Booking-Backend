@@ -162,10 +162,11 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
   const html = layout('Invoice', body);
   const subject = `Invoice ${invoice.invoiceNumber} - ${invoice.bookingReference}`;
 
-  await sendEmail({ to: booking.guest.email, subject, html });
+  const results = [await sendEmail({ to: booking.guest.email, subject, html })];
   if (officer && officer.email) {
-    await sendEmail({ to: officer.email, subject, html });
+    results.push(await sendEmail({ to: officer.email, subject, html }));
   }
+  return results.every(Boolean);
 };
 
 module.exports = {
