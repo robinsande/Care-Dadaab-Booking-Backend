@@ -270,6 +270,19 @@ const normalizeReportRows = (report) => {
   );
 };
 
+const displayHeader = (header) =>
+  String(header)
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/^./, (character) => character.toUpperCase());
+
+const displayValue = (value) => {
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  return value == null ? '' : String(value);
+};
+
 const flattenRowsToXlsxBuffer = async (report) => {
   const rows = normalizeReportRows(report);
   const workbook = new ExcelJS.Workbook();
@@ -299,13 +312,25 @@ const flattenRowsToXlsxBuffer = async (report) => {
   } else {
     const headers = Object.keys(rows[0]);
     worksheet.getRow(5).values = headers;
+    worksheet.getRow(5).values = headers.map(displayHeader);
     worksheet.getRow(5).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    worksheet.getRow(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8721E' } };
+    worksheet.getRow(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB42318' } };
+    worksheet.getRow(5).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    worksheet.getRow(5).height = 28;
+    worksheet.getRow(5).eachCell((cell) => {
+      cell.border = { top: { style: 'thin', color: { argb: 'FF7F1D1D' } }, bottom: { style: 'thin', color: { argb: 'FF7F1D1D' } }, left: { style: 'thin', color: { argb: 'FFD1D5DB' } }, right: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
+    });
     rows.forEach((row) => {
       worksheet.addRow(headers.map((header) => {
-        const value = row[header];
-        return value && typeof value === 'object' ? JSON.stringify(value) : value ?? '';
+        return displayValue(row[header]);
       }));
+    });
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber < 6) return;
+      row.alignment = { vertical: 'middle', wrapText: true };
+      row.eachCell((cell) => {
+        cell.border = { top: { style: 'thin', color: { argb: 'FFD1D5DB' } }, bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } }, left: { style: 'thin', color: { argb: 'FFD1D5DB' } }, right: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
+      });
     });
     worksheet.columns.forEach((column) => {
       let width = 12;
@@ -346,19 +371,44 @@ const flattenRowsToPdfBuffer = (report) =>
     }
 
     const headers = Object.keys(rows[0]);
-    doc.fontSize(10).text(headers.join(' | '));
-    doc.moveDown(0.5);
+    const tableTop = 128;
+    const tableLeft = 40;
+    const tableWidth = 515;
+    const columnWidth = tableWidth / headers.length;
+    const headerHeight = 28;
+    const rowHeight = 28;
 
-    rows.forEach((row) => {
-      const line = headers
-        .map((header) => {
-          let value = row[header];
-          if (value && typeof value === 'object') value = JSON.stringify(value);
-          return value == null ? '' : String(value);
-        })
-        .join(' | ');
-      doc.text(line);
+    const drawCell = (x, y, width, height, fill, text, color = '#1f2933', bold = false) => {
+      doc.rect(x, y, width, height).fillAndStroke(fill, '#d1d5db');
+      doc.fillColor(color).font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(7).text(text, x + 4, y + 7, {
+        width: width - 8,
+        height: height - 8,
+        align: 'center',
+        ellipsis: true,
+      });
+    };
+
+    headers.forEach((header, index) => {
+      drawCell(tableLeft + index * columnWidth, tableTop, columnWidth, headerHeight, '#b42318', displayHeader(header), '#ffffff', true);
     });
+
+    let currentY = tableTop + headerHeight;
+    rows.forEach((row, rowIndex) => {
+      if (currentY + rowHeight > doc.page.height - 45) {
+        doc.addPage();
+        doc.fillColor('#54206F').fontSize(14).font('Helvetica-Bold').text(`${report.title || 'Report'} (continued)`, 40, 40);
+        headers.forEach((header, index) => {
+          drawCell(tableLeft + index * columnWidth, 75, columnWidth, headerHeight, '#b42318', displayHeader(header), '#ffffff', true);
+        });
+        currentY = 75 + headerHeight;
+      }
+      headers.forEach((header, index) => {
+        drawCell(tableLeft + index * columnWidth, currentY, columnWidth, rowHeight, rowIndex % 2 ? '#fff7ed' : '#ffffff', displayValue(row[header]));
+      });
+      currentY += rowHeight;
+    });
+
+    doc.fillColor('#1f2933');
 
     doc.end();
   });
