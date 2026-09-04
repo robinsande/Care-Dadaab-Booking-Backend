@@ -7,15 +7,10 @@ const {
 } = require('../utils/constants');
 const { startOfDay, endOfDay } = require('../utils/dates');
 
-const getOccupiedRoomCount = async (date = new Date()) => {
-  const dayStart = startOfDay(date);
-  const dayEnd = endOfDay(date);
-
+const getOccupiedRoomCount = async () => {
   const [bookingRoomIds, roomStatusIds] = await Promise.all([
     Booking.distinct('room', {
-      status: { $in: ACTIVE_BOOKING_STATUSES },
-      arrivalDate: { $lte: dayEnd },
-      departureDate: { $gt: dayStart },
+      status: BOOKING_STATUS.CHECKED_IN,
     }),
     Room.distinct('_id', { status: ROOM_STATUS.OCCUPIED }),
   ]);
