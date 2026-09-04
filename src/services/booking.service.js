@@ -151,10 +151,12 @@ const resendBookingEmails = async (bookingId, actor) => {
     notify: false,
   });
   const recipients = [...new Set([booking.guest.email, actor.email].filter(Boolean))];
-  Promise.all([
+  const [bookingEmailSent, invoiceEmailSent] = await Promise.all([
     emailService.sendBookingCreated(booking, recipients),
     invoiceService.resendInvoiceEmail(booking, invoice),
-  ]).then(([bookingEmailSent, invoiceEmailSent]) => auditService.record({
+  ]);
+
+  await auditService.record({
     action: AUDIT_ACTIONS.EMAIL_SENT,
     booking,
     actorType: ACTOR_TYPE.USER,
@@ -167,14 +169,14 @@ const resendBookingEmails = async (bookingId, actor) => {
       to: recipients,
     },
     message: `Booking and invoice emails resent for ${booking.bookingReference}.`,
-  })).catch((error) => {
-    logger.warn(`Resent booking emails failed for ${booking.bookingReference}: ${error.message}`);
   });
 
   return {
     bookingReference: booking.bookingReference,
     invoiceNumber: invoice.invoiceNumber,
-    queued: true,
+    bookingEmailSent,
+    invoiceEmailSent,
+    recipients,
   };
 };
 
