@@ -82,6 +82,20 @@ const sendBookingCreated = (booking, recipients = booking.guest.email) => {
     to: recipients,
     subject: `Booking Confirmed - ${booking.bookingReference}`,
     html: layout('Booking Confirmation', body),
+    text: [
+      `Dear ${booking.guest.firstName},`,
+      '',
+      'Your accommodation booking has been confirmed.',
+      `Booking Reference: ${booking.bookingReference}`,
+      `Camp: ${booking.campName}`,
+      `Room: Block ${booking.blockName} Room ${booking.roomNumber}`,
+      `Stay Type: ${booking.stayType}`,
+      `Arrival Date: ${formatDate(booking.arrivalDate)}`,
+      `Departure Date: ${formatDate(booking.departureDate)}`,
+      `Status: ${booking.status}`,
+      '',
+      'Please save this Booking Reference for your records and when contacting CARE.',
+    ].join('\n'),
   });
 };
 
