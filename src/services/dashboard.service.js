@@ -33,6 +33,7 @@ const getDashboard = async () => {
     occupiedRooms,
     totalActiveRooms,
     bookedRooms,
+    maintenanceRoomIds,
     maintenanceRooms,
     outstandingInvoices,
     recentBookings,
@@ -48,12 +49,13 @@ const getDashboard = async () => {
       departureDate: { $gte: todayStart, $lte: todayEnd },
     }),
     getOccupiedRoomCount(),
-    Room.countDocuments({ isActive: true, status: { $ne: ROOM_STATUS.MAINTENANCE } }),
+    Room.countDocuments({ isActive: true }),
     Booking.distinct('room', {
       status: BOOKING_STATUS.BOOKED,
       arrivalDate: { $lte: todayEnd },
       departureDate: { $gt: todayStart },
     }),
+    Room.distinct('_id', { isActive: true, status: ROOM_STATUS.MAINTENANCE }),
     Room.countDocuments({ status: ROOM_STATUS.MAINTENANCE, isActive: true }),
     Invoice.countDocuments({ paymentStatus: INVOICE_PAYMENT_STATUS.UNPAID }),
     Booking.find()
@@ -84,7 +86,11 @@ const getDashboard = async () => {
   ]);
 
   const bookedRoomCount = new Set(bookedRooms.map(String)).size;
-  const availableRooms = Math.max(totalActiveRooms - occupiedRooms - bookedRoomCount, 0);
+  const maintenanceRoomCount = new Set(maintenanceRoomIds.map(String)).size;
+  const availableRooms = Math.max(
+    totalActiveRooms - occupiedRooms - bookedRoomCount - maintenanceRoomCount,
+    0,
+  );
 
   return {
     todaysArrivals,
