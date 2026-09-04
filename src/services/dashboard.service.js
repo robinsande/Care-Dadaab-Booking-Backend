@@ -44,7 +44,7 @@ const getDashboard = async () => {
       departureDate: { $gte: todayStart, $lte: todayEnd },
     }),
     getOccupiedRoomCount(),
-    Room.countDocuments({ isActive: true, status: { $nin: [ROOM_STATUS.MAINTENANCE, ROOM_STATUS.OCCUPIED] } }),
+    Room.countDocuments({ isActive: true, status: { $ne: ROOM_STATUS.MAINTENANCE } }),
     Room.countDocuments({ status: ROOM_STATUS.MAINTENANCE, isActive: true }),
     Invoice.countDocuments({ paymentStatus: INVOICE_PAYMENT_STATUS.UNPAID }),
     Booking.find()
