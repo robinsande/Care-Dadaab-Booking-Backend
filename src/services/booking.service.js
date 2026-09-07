@@ -221,8 +221,10 @@ const listBookings = async (query = {}) => {
     filter.$or = [
       { bookingReference: regex },
       { 'guest.email': regex },
+      { 'guest.phone': regex },
       { 'guest.firstName': regex },
       { 'guest.lastName': regex },
+      { 'guest.organisation': regex },
     ];
   }
 
