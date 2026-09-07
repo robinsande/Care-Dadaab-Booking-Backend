@@ -27,7 +27,7 @@ const updatePaymentStatus = asyncHandler(async (req, res) => {
   const invoice = await invoiceService.updatePaymentStatus(
     req.params.id,
     req.body.paymentStatus,
-    req.user
+    { paymentMethod: req.body.paymentMethod }
   );
   sendSuccess(res, { message: 'Invoice payment status updated.', data: invoice });
 });

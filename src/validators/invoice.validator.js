@@ -12,6 +12,10 @@ const updatePaymentStatusRules = [
   body('paymentStatus')
     .isIn(INVOICE_PAYMENT_STATUS_VALUES)
     .withMessage('Invalid payment status.'),
+  body('paymentMethod')
+    .optional()
+    .isIn(['Cash'])
+    .withMessage('Manual invoice payments must use Cash.'),
 ];
 
 module.exports = { listInvoicesRules, updatePaymentStatusRules };
