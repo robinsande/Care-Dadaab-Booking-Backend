@@ -207,7 +207,14 @@ const assertRoomAssignable = async ({
   }
 
   if ([ROOM_STATUS.BOOKED, ROOM_STATUS.OCCUPIED].includes(room.status)) {
-    throw ApiError.conflict(`${room.label} is currently occupied and cannot be assigned.`);
+    const activeRoomBooking = await Booking.findOne({
+      room: room._id,
+      status: { $in: ACTIVE_BOOKING_STATUSES },
+      ...(excludeBookingId ? { _id: { $ne: excludeBookingId } } : {}),
+    }).select('bookingReference');
+    if (activeRoomBooking) {
+      throw ApiError.conflict(`${room.label} is currently occupied and cannot be assigned.`);
+    }
   }
 
   if (!arrivalDate || !departureDate) {
