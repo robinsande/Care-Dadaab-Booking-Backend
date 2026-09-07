@@ -42,7 +42,7 @@ const getAccessToken = async () => {
 const registerC2BUrls = async () => {
   if (!env.daraja.callbackBaseUrl) throw new Error('DARAJA_CALLBACK_BASE_URL is not configured.');
   const token = await getAccessToken();
-  const response = await fetch(`${baseUrl()}/mpesa/c2b/v2/registerurl`, {
+  const response = await fetch(`${baseUrl()}/mpesa/c2b/v1/registerurl`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -53,8 +53,13 @@ const registerC2BUrls = async () => {
     }),
     signal: AbortSignal.timeout(15000),
   });
-  if (!response.ok) throw new Error(`Daraja C2B registration failed with status ${response.status}.`);
-  return response.json();
+  const responseBody = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `Daraja C2B registration failed with status ${response.status}: ${responseBody.slice(0, 500)}`
+    );
+  }
+  return responseBody ? JSON.parse(responseBody) : { ResponseCode: '00' };
 };
 
 const validatePayment = async (payload) => {
