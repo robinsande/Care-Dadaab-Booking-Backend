@@ -4,7 +4,7 @@ const env = require('../config/env');
 const authController = require('../controllers/auth.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate.middleware');
-const { loginRules, changePasswordRules } = require('../validators/auth.validator');
+const { loginRules, mfaRules, changePasswordRules } = require('../validators/auth.validator');
 
 const router = express.Router();
 
@@ -22,6 +22,7 @@ const loginLimiter = rateLimit({
 });
 
 router.post('/login', loginLimiter, validate(loginRules), authController.login);
+router.post('/mfa/verify', loginLimiter, validate(mfaRules), authController.completeMfa);
 router.get('/me', authenticate, authController.getMe);
 router.patch(
   '/change-password',

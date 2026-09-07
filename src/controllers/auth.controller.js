@@ -12,6 +12,11 @@ const login = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Login successful.', data: result });
 });
 
+const completeMfa = asyncHandler(async (req, res) => {
+  const result = await authService.completeMfa(req.body);
+  sendSuccess(res, { message: 'Verification successful.', data: result });
+});
+
 const getMe = asyncHandler(async (req, res) => {
   const user = await authService.getProfile(req.user._id);
   sendSuccess(res, { message: 'Profile retrieved.', data: user });
@@ -22,4 +27,4 @@ const changePassword = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Password changed successfully.' });
 });
 
-module.exports = { login, getMe, changePassword };
+module.exports = { login, completeMfa, getMe, changePassword };

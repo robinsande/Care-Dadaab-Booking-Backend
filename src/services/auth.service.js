@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 const { User } = require('../models');
 const env = require('../config/env');
 const ApiError = require('../utils/ApiError');
@@ -15,6 +17,18 @@ const signToken = (user) =>
     expiresIn: env.jwtExpiresIn,
   });
 
+const signMfaChallenge = (user, purpose, secret) =>
+  jwt.sign({ sub: user._id.toString(), purpose, ...(secret ? { secret } : {}) }, env.jwtSecret, {
+    expiresIn: '10m',
+  });
+
+const verifyCode = (secret, token) => speakeasy.totp.verify({
+  secret,
+  encoding: 'base32',
+  token: String(token || '').replace(/\s/g, ''),
+  window: 1,
+});
+
 /**
  * Authenticate a staff user with email + password and issue a JWT.
  *
@@ -26,7 +40,7 @@ const signToken = (user) =>
  */
 const login = async ({ email, password }) => {
   const normalizedEmail = String(email || '').trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail }).select('+password');
+  const user = await User.findOne({ email: normalizedEmail }).select('+password +mfaSecret');
 
   if (!user || !(await user.comparePassword(password))) {
     throw ApiError.unauthorized('Invalid email or password.');
@@ -34,6 +48,55 @@ const login = async ({ email, password }) => {
 
   if (!user.isActive) {
     throw ApiError.forbidden('Your account has been deactivated. Contact a Super Admin.');
+  }
+
+  if (!user.mfaEnabled) {
+    const secret = speakeasy.generateSecret({
+      name: `${env.mfaIssuer}:${user.email}`,
+      issuer: env.mfaIssuer,
+      length: 20,
+    });
+    return {
+      mfaRequired: true,
+      mfaSetupRequired: true,
+      mfaToken: signMfaChallenge(user, 'setup', secret.base32),
+      qrCodeDataUrl: await QRCode.toDataURL(secret.otpauth_url),
+      manualKey: secret.base32,
+      user: user.toJSON(),
+    };
+  }
+
+  return {
+    mfaRequired: true,
+    mfaSetupRequired: false,
+    mfaToken: signMfaChallenge(user, 'verify'),
+    user: user.toJSON(),
+  };
+};
+
+const completeMfa = async ({ mfaToken, code }) => {
+  let payload;
+  try {
+    payload = jwt.verify(mfaToken, env.jwtSecret);
+  } catch (_) {
+    throw ApiError.unauthorized('Your verification session expired. Please sign in again.');
+  }
+
+  if (!['setup', 'verify'].includes(payload.purpose)) {
+    throw ApiError.unauthorized('Invalid verification session.');
+  }
+
+  const user = await User.findById(payload.sub).select('+mfaSecret');
+  if (!user || !user.isActive) throw ApiError.unauthorized('This account is not available.');
+  const secret = payload.purpose === 'setup' ? payload.secret : user.mfaSecret;
+  if (!secret || !verifyCode(secret, code)) {
+    throw ApiError.unauthorized('Invalid Microsoft Authenticator code.');
+  }
+
+  if (payload.purpose === 'setup') {
+    user.mfaSecret = secret;
+    user.mfaEnabled = true;
+    await user.save();
   }
 
   const token = signToken(user);
@@ -88,4 +151,4 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
   await user.save();
 };
 
-module.exports = { signToken, login, getProfile, changePassword };
+module.exports = { signToken, login, completeMfa, getProfile, changePassword };

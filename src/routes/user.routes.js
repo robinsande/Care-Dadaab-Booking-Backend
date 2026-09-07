@@ -16,6 +16,7 @@ router.get('/:id', validate([mongoIdParam('id')]), userController.getUser);
 router.post('/', validate(createUserRules), userController.createUser);
 router.put('/:id', validate([mongoIdParam('id'), ...updateUserRules]), userController.updateUser);
 router.post('/:id/reset-password', validate([mongoIdParam('id')]), userController.resetPassword);
+router.post('/:id/reset-mfa', validate([mongoIdParam('id')]), userController.resetMfa);
 router.delete('/:id', validate([mongoIdParam('id')]), userController.deactivateUser);
 
 module.exports = router;

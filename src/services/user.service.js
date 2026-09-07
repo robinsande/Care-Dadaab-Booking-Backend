@@ -117,4 +117,34 @@ const deactivateUser = async (id, actor) => {
   return user;
 };
 
-module.exports = { listUsers, getUserById, createUser, updateUser, resetPassword, deactivateUser };
+const resetMfa = async (id, actor) => {
+  if (actor && actor._id.toString() === id) {
+    throw ApiError.badRequest('You cannot reset your own MFA from user management.');
+  }
+
+  const user = await getUserById(id);
+  user.mfaEnabled = false;
+  user.mfaSecret = undefined;
+  await user.save();
+
+  await auditService.record({
+    action: AUDIT_ACTIONS.USER_UPDATED,
+    actorType: ACTOR_TYPE.USER,
+    actor,
+    actorLabel: actor && actor.email,
+    metadata: { userId: user._id, mfaReset: true },
+    message: `MFA reset for ${user.email}.`,
+  });
+
+  return user;
+};
+
+module.exports = {
+  listUsers,
+  getUserById,
+  createUser,
+  updateUser,
+  resetPassword,
+  resetMfa,
+  deactivateUser,
+};

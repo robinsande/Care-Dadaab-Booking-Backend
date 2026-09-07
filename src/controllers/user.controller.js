@@ -33,9 +33,14 @@ const resetPassword = asyncHandler(async (req, res) => {
   });
 });
 
+const resetMfa = asyncHandler(async (req, res) => {
+  await userService.resetMfa(req.params.id, req.user);
+  sendSuccess(res, { message: 'MFA reset. The user must enroll again at next sign-in.' });
+});
+
 const deactivateUser = asyncHandler(async (req, res) => {
   await userService.deactivateUser(req.params.id, req.user);
   sendSuccess(res, { message: 'User deactivated.' });
 });
 
-module.exports = { listUsers, getUser, createUser, updateUser, resetPassword, deactivateUser };
+module.exports = { listUsers, getUser, createUser, updateUser, resetPassword, resetMfa, deactivateUser };

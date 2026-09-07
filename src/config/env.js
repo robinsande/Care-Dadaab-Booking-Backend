@@ -30,6 +30,7 @@ const env = {
 
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+  mfaIssuer: process.env.MFA_ISSUER || 'CAMS CARE Dadaab',
 
   corsOrigin: process.env.CORS_ORIGIN || '*',
 
