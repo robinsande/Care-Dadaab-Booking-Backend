@@ -54,6 +54,18 @@ const env = {
   },
 
   bookingReferencePrefix: process.env.BOOKING_REFERENCE_PREFIX || 'CARE',
+
+  daraja: {
+    enabled: toBool(process.env.DARAJA_ENABLED, false),
+    environment: process.env.DARAJA_ENVIRONMENT || 'sandbox',
+    consumerKey: process.env.DARAJA_CONSUMER_KEY,
+    consumerSecret: process.env.DARAJA_CONSUMER_SECRET,
+    shortCode: process.env.DARAJA_SHORT_CODE || '',
+    passkey: process.env.DARAJA_PASSKEY,
+    callbackBaseUrl: process.env.DARAJA_CALLBACK_BASE_URL,
+    validationPath: process.env.DARAJA_VALIDATION_PATH || '/api/v1/mpesa/c2b/validation',
+    confirmationPath: process.env.DARAJA_CONFIRMATION_PATH || '/api/v1/mpesa/c2b/confirmation',
+  },
 };
 
 module.exports = env;

@@ -245,6 +245,7 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
     ${detailRow('Total Amount', `${invoice.appliedRate.currency} ${invoice.totalAmount}`)}
     <h4>Payment Instructions</h4>
     ${payment.mpesaPaybillNumber ? detailRow('M-Pesa Paybill', payment.mpesaPaybillNumber) : ''}
+    ${payment.mpesaPaybillNumber ? detailRow('Paybill Account / Reference', invoice.bookingReference) : ''}
     ${payment.bankName ? detailRow('Bank', payment.bankName) : ''}
     ${payment.bankAccountName ? detailRow('Account Name', payment.bankAccountName) : ''}
     ${payment.bankAccountNumber ? detailRow('Account Number', payment.bankAccountNumber) : ''}
@@ -262,7 +263,7 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
 const sendInvoicePaid = (invoice) => {
   const guest = invoice.guest || {};
   const currency = invoice.appliedRate?.currency || 'KES';
-  const paidAt = new Date();
+  const paidAt = invoice.paidAt || new Date();
   const body = `
     <p>Dear ${guest.firstName || 'Guest'},</p>
     <p>Your pending accommodation invoice has been <strong>paid</strong>.</p>

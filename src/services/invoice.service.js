@@ -15,13 +15,14 @@ const {
 } = require('../utils/constants');
 const { calculateNights } = require('../utils/dates');
 const logger = require('../utils/logger');
+const env = require('../config/env');
 
 const buildInvoiceSnapshot = async (booking) => {
   const settings = await settingsService.getSettings();
   const numberOfNights = calculateNights(booking.arrivalDate, booking.departureDate);
   const totalAmount = booking.appliedRate.amount * numberOfNights;
   const paymentInstructions = {
-    mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || '',
+    mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.shortCode || '',
     bankName: settings.payment?.bankName || '',
     bankAccountName: settings.payment?.bankAccountName || '',
     bankAccountNumber: settings.payment?.bankAccountNumber || '',
@@ -34,6 +35,7 @@ const buildInvoiceSnapshot = async (booking) => {
       email: booking.guest.email,
       phone: booking.guest.phone,
       organisation: booking.guest.organisation,
+      contractType: booking.guest.contractType,
     },
     campName: booking.campName,
     blockName: booking.blockName,
@@ -177,7 +179,7 @@ const getInvoiceById = async (id) => {
   return invoice;
 };
 
-const updatePaymentStatus = async (id, paymentStatus) => {
+const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
   if (!INVOICE_PAYMENT_STATUS_VALUES.includes(paymentStatus)) {
     throw ApiError.badRequest('Invalid payment status.');
   }
@@ -188,6 +190,12 @@ const updatePaymentStatus = async (id, paymentStatus) => {
     && invoice.paymentStatus !== INVOICE_PAYMENT_STATUS.PAID;
 
   invoice.paymentStatus = paymentStatus;
+  if (paymentStatus === INVOICE_PAYMENT_STATUS.PAID) {
+    invoice.paidAt = invoice.paidAt || paymentDetails.paidAt || new Date();
+    invoice.paymentMethod = paymentDetails.paymentMethod || invoice.paymentMethod || 'Manual';
+    invoice.paymentTransactionId = paymentDetails.transactionId || invoice.paymentTransactionId;
+    invoice.paymentPhoneNumber = paymentDetails.phoneNumber || invoice.paymentPhoneNumber;
+  }
   await invoice.save();
 
   if (paymentCompleted) {
@@ -275,7 +283,10 @@ const generateInvoicePdfBuffer = (invoice) =>
 
     doc.fontSize(13).text('Payment Instructions', { underline: true });
     doc.fontSize(11);
-    if (payment.mpesaPaybillNumber) doc.text(`M-Pesa Paybill: ${payment.mpesaPaybillNumber}`);
+    if (payment.mpesaPaybillNumber) {
+      doc.text(`M-Pesa Paybill: ${payment.mpesaPaybillNumber}`);
+      doc.text(`Paybill Account / Reference: ${invoice.bookingReference}`);
+    }
     if (payment.bankName) doc.text(`Bank: ${payment.bankName}`);
     if (payment.bankAccountName) doc.text(`Account Name: ${payment.bankAccountName}`);
     if (payment.bankAccountNumber) doc.text(`Account Number: ${payment.bankAccountNumber}`);

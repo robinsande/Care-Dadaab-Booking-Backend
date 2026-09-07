@@ -9,6 +9,7 @@ const reportRoutes = require('./report.routes');
 const userRoutes = require('./user.routes');
 const settingsRoutes = require('./settings.routes');
 const dashboardRoutes = require('./dashboard.routes');
+const mpesaRoutes = require('./mpesa.routes');
 
 const router = express.Router();
 
@@ -26,5 +27,6 @@ router.use('/reports', reportRoutes);
 router.use('/users', userRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/mpesa', mpesaRoutes);
 
 module.exports = router;

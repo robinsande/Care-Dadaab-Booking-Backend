@@ -12,6 +12,7 @@ const guestSnapshotSchema = new mongoose.Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     phone: { type: String, required: true, trim: true },
     organisation: { type: String, trim: true },
+    contractType: { type: String, trim: true },
   },
   { _id: false }
 );
@@ -86,6 +87,10 @@ const invoiceSchema = new mongoose.Schema(
       enum: INVOICE_PAYMENT_STATUS_VALUES,
       default: INVOICE_PAYMENT_STATUS.UNPAID,
     },
+    paidAt: { type: Date, default: null },
+    paymentMethod: { type: String, trim: true, default: null },
+    paymentTransactionId: { type: String, trim: true, default: null, unique: true, sparse: true },
+    paymentPhoneNumber: { type: String, trim: true, default: null },
 
     recipientOfficer: {
       type: mongoose.Schema.Types.ObjectId,

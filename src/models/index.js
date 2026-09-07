@@ -11,4 +11,5 @@ module.exports = {
   Invoice: require('./Invoice'),
   Settings: require('./Settings'),
   AuditLog: require('./AuditLog'),
+  MpesaTransaction: require('./MpesaTransaction'),
 };
