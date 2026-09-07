@@ -22,7 +22,7 @@ const buildInvoiceSnapshot = async (booking) => {
   const numberOfNights = calculateNights(booking.arrivalDate, booking.departureDate);
   const totalAmount = booking.appliedRate.amount * numberOfNights;
   const paymentInstructions = {
-    mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.shortCode || '',
+    mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     bankName: settings.payment?.bankName || '',
     bankAccountName: settings.payment?.bankAccountName || '',
     bankAccountNumber: settings.payment?.bankAccountNumber || '',

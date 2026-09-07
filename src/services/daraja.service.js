@@ -46,7 +46,7 @@ const registerC2BUrls = async () => {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      ShortCode: env.daraja.shortCode,
+      ShortCode: env.daraja.c2bShortCode,
       ResponseType: 'Completed',
       ConfirmationURL: new URL(env.daraja.confirmationPath, env.daraja.callbackBaseUrl).toString(),
       ValidationURL: new URL(env.daraja.validationPath, env.daraja.callbackBaseUrl).toString(),
@@ -97,26 +97,26 @@ const initiateStkPush = async (invoiceId, phoneNumber) => {
   if (isCareStaff(invoice.guest?.contractType)) {
     throw new Error('CARE staff payments are handled by the organisation.');
   }
-  if (!env.daraja.callbackBaseUrl || !env.daraja.passkey || !env.daraja.shortCode) {
+  if (!env.daraja.callbackBaseUrl || !env.daraja.passkey || !env.daraja.stkShortCode) {
     throw new Error('Daraja STK Push settings are not fully configured.');
   }
 
   const timestamp = buildTimestamp();
   const password = Buffer
-    .from(`${env.daraja.shortCode}${env.daraja.passkey}${timestamp}`)
+    .from(`${env.daraja.stkShortCode}${env.daraja.passkey}${timestamp}`)
     .toString('base64');
   const token = await getAccessToken();
   const response = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      BusinessShortCode: env.daraja.shortCode,
+      BusinessShortCode: env.daraja.stkShortCode,
       Password: password,
       Timestamp: timestamp,
       TransactionType: 'CustomerPayBillOnline',
       Amount: Math.ceil(invoice.totalAmount),
       PartyA: normalizePhoneNumber(phoneNumber),
-      PartyB: env.daraja.shortCode,
+      PartyB: env.daraja.stkShortCode,
       PhoneNumber: normalizePhoneNumber(phoneNumber),
       CallBackURL: new URL(env.daraja.stkCallbackPath, env.daraja.callbackBaseUrl).toString(),
       AccountReference: invoice.bookingReference,
