@@ -130,9 +130,6 @@ const extendStayRules = [
     .trim()
     .notEmpty()
     .withMessage('An extension reason is required.'),
-  body('additionalCost')
-    .isFloat({ min: 0 })
-    .withMessage('Additional cost must be a non-negative amount.'),
 ];
 
 module.exports = {

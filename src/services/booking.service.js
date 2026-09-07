@@ -10,6 +10,7 @@ const emailService = require('./email.service');
 const settingsService = require('./settings.service');
 const auditService = require('./audit.service');
 const logger = require('../utils/logger');
+const { calculateNights } = require('../utils/dates');
 const {
   BOOKING_STATUS,
   ACTOR_TYPE,
@@ -475,10 +476,8 @@ const extendStay = async (bookingId, { newDepartureDate, reason, additionalCost 
   }
   const trimmedReason = String(reason || '').trim();
   if (!trimmedReason) throw ApiError.badRequest('An extension reason is required.');
-  const cost = Number(additionalCost);
-  if (!Number.isFinite(cost) || cost < 0) {
-    throw ApiError.badRequest('Additional cost must be a non-negative amount.');
-  }
+  const extensionNights = calculateNights(booking.departureDate, newDeparture);
+  const cost = booking.appliedRate.amount * extensionNights;
 
   await roomService.assertRoomAssignable({
     roomId: booking.room,
