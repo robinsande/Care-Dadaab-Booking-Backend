@@ -33,8 +33,17 @@ const getAccessToken = async () => {
     headers: { Authorization: `Basic ${credentials}` },
     signal: AbortSignal.timeout(15000),
   });
-  if (!response.ok) throw new Error(`Daraja OAuth failed with status ${response.status}.`);
-  const data = await response.json();
+  const responseBody = await response.text();
+  let data = {};
+  try {
+    data = responseBody ? JSON.parse(responseBody) : {};
+  } catch (error) {
+    if (response.ok) throw new Error('Daraja OAuth returned an invalid response.');
+  }
+  if (!response.ok) {
+    const detail = data.error_description || data.errorMessage || responseBody;
+    throw new Error(`Daraja OAuth failed with status ${response.status}: ${detail || 'No details returned.'}`);
+  }
   if (!data.access_token) throw new Error('Daraja OAuth response did not include an access token.');
   return data.access_token;
 };
