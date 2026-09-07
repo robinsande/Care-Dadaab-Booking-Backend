@@ -62,6 +62,116 @@ const registerC2BUrls = async () => {
   return responseBody ? JSON.parse(responseBody) : { ResponseCode: '00' };
 };
 
+const normalizePhoneNumber = (phoneNumber) => {
+  const digits = String(phoneNumber || '').replace(/\D/g, '');
+  if (digits.startsWith('0')) return `254${digits.slice(1)}`;
+  if (digits.startsWith('7') || digits.startsWith('1')) return `254${digits}`;
+  if (digits.startsWith('254')) return digits;
+  throw new Error('Enter a valid Kenyan phone number.');
+};
+
+const buildTimestamp = () => {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Nairobi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now).reduce((result, part) => {
+    result[part.type] = part.value;
+    return result;
+  }, {});
+  return `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}${parts.second}`;
+};
+
+const initiateStkPush = async (invoiceId, phoneNumber) => {
+  const invoice = await Invoice.findById(invoiceId);
+  if (!invoice) throw new Error('Invoice not found.');
+  if (invoice.paymentStatus === INVOICE_PAYMENT_STATUS.PAID) {
+    throw new Error('This invoice is already paid.');
+  }
+  if (isCareStaff(invoice.guest?.contractType)) {
+    throw new Error('CARE staff payments are handled by the organisation.');
+  }
+  if (!env.daraja.callbackBaseUrl || !env.daraja.passkey || !env.daraja.shortCode) {
+    throw new Error('Daraja STK Push settings are not fully configured.');
+  }
+
+  const timestamp = buildTimestamp();
+  const password = Buffer
+    .from(`${env.daraja.shortCode}${env.daraja.passkey}${timestamp}`)
+    .toString('base64');
+  const token = await getAccessToken();
+  const response = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      BusinessShortCode: env.daraja.shortCode,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: 'CustomerPayBillOnline',
+      Amount: Math.ceil(invoice.totalAmount),
+      PartyA: normalizePhoneNumber(phoneNumber),
+      PartyB: env.daraja.shortCode,
+      PhoneNumber: normalizePhoneNumber(phoneNumber),
+      CallBackURL: new URL(env.daraja.stkCallbackPath, env.daraja.callbackBaseUrl).toString(),
+      AccountReference: invoice.bookingReference,
+      TransactionDesc: `Accommodation invoice ${invoice.invoiceNumber}`.slice(0, 20),
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const responseBody = await response.text();
+  const data = responseBody ? JSON.parse(responseBody) : {};
+  if (!response.ok || data.ResponseCode !== '0') {
+    throw new Error(`Daraja STK Push failed: ${data.errorMessage || data.ResponseDescription || responseBody}`);
+  }
+
+  await invoiceService.updatePaymentStatus(invoice._id, invoice.paymentStatus, {
+    paymentMethod: 'M-Pesa STK Push',
+    phoneNumber: normalizePhoneNumber(phoneNumber),
+    checkoutRequestId: data.CheckoutRequestID,
+  });
+  return {
+    checkoutRequestId: data.CheckoutRequestID,
+    customerMessage: data.CustomerMessage || 'Please check the guest phone for the M-Pesa prompt.',
+  };
+};
+
+const processStkCallback = async (payload) => {
+  const callback = payload?.Body?.stkCallback;
+  if (!callback?.CheckoutRequestID) throw new Error('Invalid STK callback payload.');
+  if (Number(callback.ResultCode) !== 0) return callback;
+  const invoice = await Invoice.findOne({ paymentCheckoutRequestId: callback.CheckoutRequestID });
+  if (!invoice || invoice.paymentStatus === INVOICE_PAYMENT_STATUS.PAID) return callback;
+  const metadata = callback.CallbackMetadata?.Item || [];
+  const getItem = (name) => metadata.find((item) => item.Name === name)?.Value;
+  const transactionId = getItem('MpesaReceiptNumber');
+  const amount = Number(getItem('Amount'));
+  if (!transactionId || amount !== Number(invoice.totalAmount)) {
+    throw new Error(`STK payment details do not match invoice ${invoice.invoiceNumber}.`);
+  }
+  await MpesaTransaction.create({
+    transactionId,
+    invoice: invoice._id,
+    bookingReference: invoice.bookingReference,
+    amount,
+    phoneNumber: getItem('PhoneNumber'),
+    transactionTime: new Date(),
+    rawPayload: payload,
+  });
+  await invoiceService.updatePaymentStatus(invoice._id, INVOICE_PAYMENT_STATUS.PAID, {
+    paymentMethod: 'M-Pesa STK Push',
+    transactionId,
+    phoneNumber: getItem('PhoneNumber'),
+    checkoutRequestId: callback.CheckoutRequestID,
+  });
+  return callback;
+};
+
 const validatePayment = async (payload) => {
   const reference = String(payload.BillRefNumber || '').trim();
   if (!reference || !payload.TransID) return { ResultCode: 'C2B00011', ResultDesc: 'Invalid payment reference.' };
@@ -116,4 +226,10 @@ const processConfirmation = async (payload) => {
   return updated;
 };
 
-module.exports = { registerC2BUrls, validatePayment, processConfirmation };
+module.exports = {
+  registerC2BUrls,
+  initiateStkPush,
+  processStkCallback,
+  validatePayment,
+  processConfirmation,
+};

@@ -190,6 +190,8 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
     && invoice.paymentStatus !== INVOICE_PAYMENT_STATUS.PAID;
 
   invoice.paymentStatus = paymentStatus;
+  invoice.paymentCheckoutRequestId =
+    paymentDetails.checkoutRequestId || invoice.paymentCheckoutRequestId;
   if (paymentStatus === INVOICE_PAYMENT_STATUS.PAID) {
     invoice.paidAt = invoice.paidAt || paymentDetails.paidAt || new Date();
     invoice.paymentMethod = paymentDetails.paymentMethod || invoice.paymentMethod || 'Manual';
