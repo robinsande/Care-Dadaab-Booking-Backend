@@ -238,6 +238,9 @@ const sendBookingCheckedOut = (booking) => {
     ${detailRow('Check-out Date', formatDate(booking.checkedOutAt))}
     ${booking.checkoutReason ? detailRow('Reason', booking.checkoutReason) : ''}
     ${detailRow('Status', booking.status)}
+    <h3>Thank You for Being Our Guest!</h3>
+    <p>Your stay has come to an end, and we're grateful you chose CARE Accommodation. We hope we made your visit comfortable and memorable. We look forward to hosting you again soon. Safe travels, and thank you for staying with us!</p>
+    <p>Warm regards,<br>CARE Accommodation</p>
   `;
   return sendEmail({
     to: booking.guest.email,
@@ -253,6 +256,12 @@ const sendBookingCheckedOut = (booking) => {
       `Check-out Date: ${formatDate(booking.checkedOutAt)}`,
       booking.checkoutReason ? `Reason: ${booking.checkoutReason}` : '',
       `Status: ${booking.status}`,
+      '',
+      'Thank You for Being Our Guest!',
+      "Your stay has come to an end, and we're grateful you chose CARE Accommodation. We hope we made your visit comfortable and memorable. We look forward to hosting you again soon. Safe travels, and thank you for staying with us!",
+      '',
+      'Warm regards,',
+      'CARE Accommodation',
     ].filter(Boolean).join('\n'),
   });
 };
