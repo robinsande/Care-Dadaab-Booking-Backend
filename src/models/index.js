@@ -12,4 +12,5 @@ module.exports = {
   Settings: require('./Settings'),
   AuditLog: require('./AuditLog'),
   MpesaTransaction: require('./MpesaTransaction'),
+  ReminderLog: require('./ReminderLog'),
 };

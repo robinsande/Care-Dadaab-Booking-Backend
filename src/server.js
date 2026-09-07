@@ -5,6 +5,7 @@ const logger = require('./utils/logger');
 const mongoose = require('mongoose');
 const { autoCheckOutDueBookings } = require('./services/booking.service');
 const { syncAllRoomStatuses } = require('./services/room.service');
+const { runReminderSweep } = require('./services/reminder.service');
 
 /**
  * Application entry point. Connects to MongoDB, then starts the HTTP server.
@@ -14,7 +15,7 @@ const start = async () => {
   await connectDB();
 
   const runMaintenance = () =>
-    Promise.all([autoCheckOutDueBookings(), syncAllRoomStatuses()])
+    Promise.all([autoCheckOutDueBookings(), syncAllRoomStatuses(), runReminderSweep()])
       .catch((error) => logger.error(`Maintenance sync failed: ${error.message}`));
 
   const checkoutSweep = setInterval(() => {

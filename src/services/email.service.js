@@ -266,6 +266,42 @@ const sendBookingCheckedOut = (booking) => {
   });
 };
 
+const sendBookingReminder = (booking, type, invoice = null) => {
+  const isArrival = type === 'arrival';
+  const isDeparture = type === 'departure';
+  const title = isArrival ? 'Arrival Reminder' : isDeparture ? 'Departure Reminder' : 'Payment Reminder';
+  const message = isArrival
+    ? `This is a reminder that your stay begins on ${formatDate(booking.arrivalDate)}.`
+    : isDeparture
+      ? `This is a reminder that your scheduled departure is on ${formatDate(booking.departureDate)}.`
+      : `Your invoice ${invoice?.invoiceNumber || ''} has an outstanding balance of ${invoice?.appliedRate?.currency || 'KES'} ${Number(invoice?.totalAmount || 0).toFixed(2)}.`;
+  const body = `
+    <p>Dear ${booking.guest.firstName},</p>
+    <p>${message}</p>
+    ${detailRow('Booking Reference', booking.bookingReference)}
+    ${detailRow('Camp', booking.campName)}
+    ${detailRow('Room', `Block ${booking.blockName} Room ${booking.roomNumber}`)}
+    ${detailRow('Arrival Date', formatDate(booking.arrivalDate))}
+    ${detailRow('Departure Date', formatDate(booking.departureDate))}
+    <p>Please contact CARE Accommodation if you need assistance.</p>
+  `;
+  return sendEmail({
+    to: booking.guest.email,
+    subject: `${title} - ${booking.bookingReference}`,
+    html: layout(title, body),
+    text: [
+      `Dear ${booking.guest.firstName},`,
+      '',
+      message,
+      `Booking Reference: ${booking.bookingReference}`,
+      `Camp: ${booking.campName}`,
+      `Room: Block ${booking.blockName} Room ${booking.roomNumber}`,
+      `Arrival Date: ${formatDate(booking.arrivalDate)}`,
+      `Departure Date: ${formatDate(booking.departureDate)}`,
+    ].join('\n'),
+  });
+};
+
 const sendInvoiceGenerated = async (booking, invoice, officer) => {
   const payment = invoice.paymentInstructions || {};
   const body = `
@@ -340,6 +376,7 @@ module.exports = {
   sendBookingCancelled,
   sendBookingCheckedIn,
   sendBookingCheckedOut,
+  sendBookingReminder,
   sendInvoiceGenerated,
   sendInvoicePaid,
 };
