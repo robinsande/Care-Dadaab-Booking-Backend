@@ -56,8 +56,22 @@ const dateRules = [
     .withMessage('Departure date must be a valid date.')
     .bail()
     .custom((value, { req }) => {
-      if (new Date(value) <= new Date(req.body.arrivalDate)) {
+      const arrival = new Date(req.body.arrivalDate);
+      const departure = new Date(value);
+      if (departure <= arrival) {
         throw new Error('Departure date must be after the arrival date.');
+      }
+      if (req.body.stayType === 'Long Stay') {
+        const minimum = new Date(arrival);
+        minimum.setMonth(minimum.getMonth() + 1);
+        const maximum = new Date(arrival);
+        maximum.setMonth(maximum.getMonth() + 12);
+        if (departure <= minimum) {
+          throw new Error('Long Stay must be more than one month.');
+        }
+        if (departure > maximum) {
+          throw new Error('Long Stay cannot exceed 12 months.');
+        }
       }
       return true;
     }),
