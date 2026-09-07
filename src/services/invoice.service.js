@@ -20,7 +20,9 @@ const env = require('../config/env');
 const buildInvoiceSnapshot = async (booking) => {
   const settings = await settingsService.getSettings();
   const numberOfNights = calculateNights(booking.arrivalDate, booking.departureDate);
-  const totalAmount = booking.appliedRate.amount * numberOfNights;
+  const extensionCost = (booking.extensions || [])
+    .reduce((total, extension) => total + Number(extension.additionalCost || 0), 0);
+  const totalAmount = booking.appliedRate.amount * numberOfNights + extensionCost;
   const paymentInstructions = {
     mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     bankName: settings.payment?.bankName || '',
@@ -43,6 +45,7 @@ const buildInvoiceSnapshot = async (booking) => {
     arrivalDate: booking.arrivalDate,
     departureDate: booking.departureDate,
     numberOfNights,
+    extensionCost,
     stayType: booking.stayType,
     appliedRate: {
       amount: booking.appliedRate.amount,

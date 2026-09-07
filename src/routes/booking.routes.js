@@ -9,6 +9,7 @@ const {
   updateBookingRules,
   listBookingsRules,
   cancelBookingRules,
+  extendStayRules,
 } = require('../validators/booking.validator');
 
 const router = express.Router();
@@ -25,6 +26,7 @@ router.post(
   bookingController.cancelBooking
 );
 router.post('/:id/check-in', validate([mongoIdParam('id')]), bookingController.checkIn);
+router.post('/:id/extend', validate([mongoIdParam('id'), ...extendStayRules]), bookingController.extendStay);
 router.post('/:id/check-out', validate([mongoIdParam('id')]), bookingController.checkOut);
 router.post('/:id/generate-invoice', validate([mongoIdParam('id')]), bookingController.generateInvoice);
 router.post('/:id/resend-emails', validate([mongoIdParam('id')]), bookingController.resendEmails);

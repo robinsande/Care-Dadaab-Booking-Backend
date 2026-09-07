@@ -118,6 +118,14 @@ const bookingSchema = new mongoose.Schema(
     checkedInAt: { type: Date, default: null },
     checkedOutAt: { type: Date, default: null },
     checkoutReason: { type: String, trim: true, default: null },
+    extensions: [{
+      previousDepartureDate: { type: Date, required: true },
+      newDepartureDate: { type: Date, required: true },
+      reason: { type: String, required: true, trim: true },
+      additionalCost: { type: Number, required: true, min: 0 },
+      extendedAt: { type: Date, default: Date.now },
+      extendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    }],
   },
   { timestamps: true }
 );

@@ -65,6 +65,11 @@ const checkIn = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Guest checked in.', data: booking });
 });
 
+const extendStay = asyncHandler(async (req, res) => {
+  const result = await bookingService.extendStay(req.params.id, req.body, req.user);
+  sendSuccess(res, { message: 'Stay extended and invoice updated.', data: result });
+});
+
 const checkOut = asyncHandler(async (req, res) => {
   const result = await bookingService.checkOut(req.params.id, req.user, req.body?.checkoutReason);
   sendSuccess(res, {
@@ -85,6 +90,7 @@ module.exports = {
   updateBooking,
   cancelBooking,
   checkIn,
+  extendStay,
   checkOut,
   generateInvoice,
   resendEmails,

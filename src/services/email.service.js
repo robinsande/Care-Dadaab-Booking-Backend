@@ -155,6 +155,35 @@ const sendBookingUpdated = (booking) => {
   });
 };
 
+const sendBookingExtended = (booking, extension) => {
+  const currency = booking.appliedRate?.currency || 'KES';
+  const body = `
+    <p>Dear ${booking.guest.firstName},</p>
+    <p>Your accommodation booking has been <strong>extended</strong>.</p>
+    ${detailRow('Booking Reference', booking.bookingReference)}
+    ${detailRow('New Departure Date', formatDate(booking.departureDate))}
+    ${detailRow('Additional Cost', `${currency} ${Number(extension.additionalCost).toLocaleString('en-KE', { minimumFractionDigits: 2 })}`)}
+    ${detailRow('Reason', extension.reason)}
+    <p>Your updated invoice reflects the extended stay and additional cost.</p>
+  `;
+  return sendEmail({
+    to: [booking.guest.email, extension.extendedBy?.email].filter(Boolean),
+    subject: `Stay Extended - ${booking.bookingReference}`,
+    html: layout('Accommodation Stay Extended', body),
+    text: [
+      `Dear ${booking.guest.firstName},`,
+      '',
+      'Your accommodation booking has been extended.',
+      `Booking Reference: ${booking.bookingReference}`,
+      `New Departure Date: ${formatDate(booking.departureDate)}`,
+      `Additional Cost: ${currency} ${Number(extension.additionalCost).toLocaleString('en-KE', { minimumFractionDigits: 2 })}`,
+      `Reason: ${extension.reason}`,
+      '',
+      'Your updated invoice reflects the extended stay and additional cost.',
+    ].join('\n'),
+  });
+};
+
 const sendBookingCancelled = (booking) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
@@ -298,6 +327,7 @@ module.exports = {
   sendEmail,
   sendBookingCreated,
   sendBookingUpdated,
+  sendBookingExtended,
   sendBookingCancelled,
   sendBookingCheckedIn,
   sendBookingCheckedOut,

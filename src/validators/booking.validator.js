@@ -122,9 +122,23 @@ const cancelBookingRules = [
   body('reason').trim().notEmpty().withMessage('Cancellation reason is required.'),
 ];
 
+const extendStayRules = [
+  body('newDepartureDate')
+    .isISO8601()
+    .withMessage('A valid new departure date is required.'),
+  body('reason')
+    .trim()
+    .notEmpty()
+    .withMessage('An extension reason is required.'),
+  body('additionalCost')
+    .isFloat({ min: 0 })
+    .withMessage('Additional cost must be a non-negative amount.'),
+];
+
 module.exports = {
   createBookingRules,
   updateBookingRules,
   listBookingsRules,
   cancelBookingRules,
+  extendStayRules,
 };

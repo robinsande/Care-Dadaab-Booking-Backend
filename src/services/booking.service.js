@@ -1,4 +1,4 @@
-const { Booking, Invoice } = require('../models');
+const { Booking, Invoice, User } = require('../models');
 const ApiError = require('../utils/ApiError');
 const referenceService = require('./reference.service');
 const roomService = require('./room.service');
@@ -462,6 +462,70 @@ const checkIn = async (bookingId, actor) => {
   return booking;
 };
 
+const extendStay = async (bookingId, { newDepartureDate, reason, additionalCost }, actor) => {
+  const booking = await Booking.findById(bookingId);
+  if (!booking) throw ApiError.notFound('Booking not found.');
+  if (![BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN].includes(booking.status)) {
+    throw ApiError.badRequest('Only booked or checked-in stays can be extended.');
+  }
+
+  const newDeparture = new Date(newDepartureDate);
+  if (Number.isNaN(newDeparture.getTime()) || newDeparture <= booking.departureDate) {
+    throw ApiError.badRequest('The new departure date must be after the current departure date.');
+  }
+  const trimmedReason = String(reason || '').trim();
+  if (!trimmedReason) throw ApiError.badRequest('An extension reason is required.');
+  const cost = Number(additionalCost);
+  if (!Number.isFinite(cost) || cost < 0) {
+    throw ApiError.badRequest('Additional cost must be a non-negative amount.');
+  }
+
+  await roomService.assertRoomAssignable({
+    roomId: booking.room,
+    campId: booking.camp,
+    blockId: booking.block,
+    arrivalDate: booking.arrivalDate,
+    departureDate: newDeparture,
+    excludeBookingId: booking._id,
+  });
+
+  const extension = {
+    previousDepartureDate: booking.departureDate,
+    newDepartureDate: newDeparture,
+    reason: trimmedReason,
+    additionalCost: cost,
+    extendedAt: new Date(),
+    extendedBy: actor._id,
+  };
+  booking.departureDate = newDeparture;
+  booking.extensions = booking.extensions || [];
+  booking.extensions.push(extension);
+  await booking.save();
+  await roomService.syncRoomStatus(booking.room);
+
+  await auditService.record({
+    action: AUDIT_ACTIONS.BOOKING_UPDATED,
+    booking,
+    actorType: ACTOR_TYPE.USER,
+    actor,
+    actorLabel: actor.email,
+    metadata: { extension: { reason: trimmedReason, additionalCost: cost, newDepartureDate: newDeparture } },
+    message: `Booking ${booking.bookingReference} extended to ${newDeparture.toISOString()}.`,
+  });
+
+  const invoice = await invoiceService.generateInvoiceForBooking(booking, { mode: 'upsert', notify: false });
+  const extendedBy = await User.findById(actor._id).select('email firstName lastName').lean();
+  const emailExtension = { ...extension, extendedBy };
+  emailService.sendBookingExtended(booking, emailExtension)
+    .then((sent) => {
+      if (sent) return recordEmailSent(booking, 'Booking Extended');
+      return null;
+    })
+    .catch((error) => logger.warn(`Stay extension email failed for ${booking.bookingReference}: ${error.message}`));
+
+  return { booking, invoice };
+};
+
 const checkOut = async (bookingId, actor, checkoutReason = null) => {
   const booking = await Booking.findById(bookingId);
   if (!booking) throw ApiError.notFound('Booking not found.');
@@ -569,6 +633,7 @@ module.exports = {
   updateBooking,
   cancelBooking,
   checkIn,
+  extendStay,
   checkOut,
   autoCheckOutDueBookings,
   generateInvoiceForBookingId,

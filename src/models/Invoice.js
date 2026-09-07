@@ -76,6 +76,7 @@ const invoiceSchema = new mongoose.Schema(
     stayType: { type: String, enum: STAY_TYPE_VALUES, required: true },
     appliedRate: { type: appliedRateSnapshotSchema, required: true },
     totalAmount: { type: Number, required: true, min: 0 },
+    extensionCost: { type: Number, default: 0, min: 0 },
 
     paymentInstructions: {
       type: paymentInstructionsSchema,
