@@ -13,12 +13,12 @@ const { syncAllRoomStatuses } = require('./services/room.service');
 const start = async () => {
   await connectDB();
 
-  await autoCheckOutDueBookings();
-  await syncAllRoomStatuses();
+  const runMaintenance = () =>
+    Promise.all([autoCheckOutDueBookings(), syncAllRoomStatuses()])
+      .catch((error) => logger.error(`Maintenance sync failed: ${error.message}`));
+
   const checkoutSweep = setInterval(() => {
-    autoCheckOutDueBookings()
-      .then(() => syncAllRoomStatuses())
-      .catch((error) => logger.error(`Automatic checkout failed: ${error.message}`));
+    runMaintenance();
   }, 60 * 1000);
   checkoutSweep.unref();
 
@@ -27,6 +27,7 @@ const start = async () => {
     logger.info(`API base path: ${env.apiPrefix}`);
     logger.info(`Local URL:     http://localhost:${env.port}${env.apiPrefix}`);
     logger.info(`IPv4 direct:   http://127.0.0.1:${env.port}${env.apiPrefix}`);
+    runMaintenance();
   });
 
   setTimeout(async () => {

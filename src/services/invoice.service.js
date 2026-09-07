@@ -157,7 +157,8 @@ const listInvoices = async (query = {}) => {
       .populate('recipientOfficer', 'firstName lastName email')
       .sort({ generatedAt: -1 })
       .skip(skip)
-      .limit(limit),
+      .limit(limit)
+      .lean(),
     Invoice.countDocuments(filter),
   ]);
 
@@ -174,7 +175,8 @@ const listInvoices = async (query = {}) => {
 const getInvoiceById = async (id) => {
   const invoice = await Invoice.findById(id)
     .populate('booking', 'bookingReference status')
-    .populate('recipientOfficer', 'firstName lastName email');
+    .populate('recipientOfficer', 'firstName lastName email')
+    .lean();
   if (!invoice) throw ApiError.notFound('Invoice not found.');
   return invoice;
 };
