@@ -259,6 +259,40 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
   return results.every(Boolean);
 };
 
+const sendInvoicePaid = (invoice) => {
+  const guest = invoice.guest || {};
+  const currency = invoice.appliedRate?.currency || 'KES';
+  const paidAt = new Date();
+  const body = `
+    <p>Dear ${guest.firstName || 'Guest'},</p>
+    <p>Your pending accommodation invoice has been <strong>paid</strong>.</p>
+    ${detailRow('Invoice Number', invoice.invoiceNumber)}
+    ${detailRow('Booking Reference', invoice.bookingReference)}
+    ${detailRow('Amount Paid', `${currency} ${invoice.totalAmount}`)}
+    ${detailRow('Payment Status', invoice.paymentStatus)}
+    ${detailRow('Payment Date', formatDate(paidAt))}
+    <p>Thank you. Please keep this confirmation for your records.</p>
+  `;
+
+  return sendEmail({
+    to: guest.email,
+    subject: `Payment Confirmed - Invoice ${invoice.invoiceNumber}`,
+    html: layout('Invoice Payment Confirmed', body),
+    text: [
+      `Dear ${guest.firstName || 'Guest'},`,
+      '',
+      'Your pending accommodation invoice has been paid.',
+      `Invoice Number: ${invoice.invoiceNumber}`,
+      `Booking Reference: ${invoice.bookingReference}`,
+      `Amount Paid: ${currency} ${invoice.totalAmount}`,
+      `Payment Status: ${invoice.paymentStatus}`,
+      `Payment Date: ${formatDate(paidAt)}`,
+      '',
+      'Thank you. Please keep this confirmation for your records.',
+    ].join('\n'),
+  });
+};
+
 module.exports = {
   sendEmail,
   sendBookingCreated,
@@ -267,4 +301,5 @@ module.exports = {
   sendBookingCheckedIn,
   sendBookingCheckedOut,
   sendInvoiceGenerated,
+  sendInvoicePaid,
 };

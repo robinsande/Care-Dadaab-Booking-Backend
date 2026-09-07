@@ -7,7 +7,12 @@ const settingsService = require('./settings.service');
 const referenceService = require('./reference.service');
 const emailService = require('./email.service');
 const auditService = require('./audit.service');
-const { ACTOR_TYPE, AUDIT_ACTIONS, INVOICE_PAYMENT_STATUS_VALUES } = require('../utils/constants');
+const {
+  ACTOR_TYPE,
+  AUDIT_ACTIONS,
+  INVOICE_PAYMENT_STATUS,
+  INVOICE_PAYMENT_STATUS_VALUES,
+} = require('../utils/constants');
 const { calculateNights } = require('../utils/dates');
 const logger = require('../utils/logger');
 
@@ -178,8 +183,20 @@ const updatePaymentStatus = async (id, paymentStatus) => {
   }
 
   const invoice = await getInvoiceById(id);
+  const paymentCompleted =
+    paymentStatus === INVOICE_PAYMENT_STATUS.PAID
+    && invoice.paymentStatus !== INVOICE_PAYMENT_STATUS.PAID;
+
   invoice.paymentStatus = paymentStatus;
   await invoice.save();
+
+  if (paymentCompleted) {
+    const emailSent = await emailService.sendInvoicePaid(invoice);
+    if (!emailSent) {
+      logger.warn(`Paid invoice email was not sent for ${invoice.invoiceNumber}.`);
+    }
+  }
+
   return invoice;
 };
 
