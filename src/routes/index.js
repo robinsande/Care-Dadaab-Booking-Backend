@@ -28,5 +28,7 @@ router.use('/users', userRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/mpesa', mpesaRoutes);
+// Safaricom rejects callback URLs containing the word "mpesa".
+router.use('/payments', mpesaRoutes);
 
 module.exports = router;
