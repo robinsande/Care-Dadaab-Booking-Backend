@@ -186,7 +186,8 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
     throw ApiError.badRequest('Invalid payment status.');
   }
 
-  const invoice = await getInvoiceById(id);
+  const invoice = await Invoice.findById(id);
+  if (!invoice) throw ApiError.notFound('Invoice not found.');
   const paymentCompleted =
     paymentStatus === INVOICE_PAYMENT_STATUS.PAID
     && invoice.paymentStatus !== INVOICE_PAYMENT_STATUS.PAID;
