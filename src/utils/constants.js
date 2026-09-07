@@ -34,6 +34,14 @@ const ROOM_STATUS = Object.freeze({
 
 const ROOM_STATUS_VALUES = Object.freeze(Object.values(ROOM_STATUS));
 
+const HOUSEKEEPING_STATUS = Object.freeze({
+  CLEAN: 'Clean',
+  DIRTY: 'Dirty',
+  INSPECTED: 'Inspected',
+});
+
+const HOUSEKEEPING_STATUS_VALUES = Object.freeze(Object.values(HOUSEKEEPING_STATUS));
+
 const STAY_TYPE = Object.freeze({
   SHORT_STAY: 'Short Stay',
   LONG_STAY: 'Long Stay',
@@ -114,6 +122,8 @@ module.exports = {
   ACTIVE_BOOKING_STATUSES,
   ROOM_STATUS,
   ROOM_STATUS_VALUES,
+  HOUSEKEEPING_STATUS,
+  HOUSEKEEPING_STATUS_VALUES,
   STAY_TYPE,
   STAY_TYPE_VALUES,
   INVOICE_PAYMENT_STATUS,

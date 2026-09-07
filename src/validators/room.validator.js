@@ -1,5 +1,5 @@
 const { body, query } = require('express-validator');
-const { ROOM_STATUS_VALUES } = require('../utils/constants');
+const { ROOM_STATUS_VALUES, HOUSEKEEPING_STATUS_VALUES } = require('../utils/constants');
 
 const createRoomRules = [
   body('campId').isMongoId().withMessage('A valid camp id is required.'),
@@ -7,6 +7,7 @@ const createRoomRules = [
   body('roomNumber').trim().notEmpty().withMessage('Room number is required.'),
   body('capacity').isInt({ min: 1 }).withMessage('Capacity must be at least 1.'),
   body('status').optional().isIn(ROOM_STATUS_VALUES),
+  body('housekeepingStatus').optional().isIn(HOUSEKEEPING_STATUS_VALUES),
   body('notes').optional().trim(),
   body('isActive').optional().isBoolean(),
 ];
@@ -16,6 +17,7 @@ const updateRoomRules = [
   body('roomNumber').optional().trim().notEmpty(),
   body('capacity').optional().isInt({ min: 1 }),
   body('status').optional().isIn(ROOM_STATUS_VALUES),
+  body('housekeepingStatus').optional().isIn(HOUSEKEEPING_STATUS_VALUES),
   body('notes').optional().trim(),
   body('isActive').optional().isBoolean(),
 ];

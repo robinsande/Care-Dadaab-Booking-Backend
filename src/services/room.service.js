@@ -7,6 +7,7 @@ const {
   ACTOR_TYPE,
   AUDIT_ACTIONS,
   ROOM_STATUS,
+  HOUSEKEEPING_STATUS,
   ACTIVE_BOOKING_STATUSES,
 } = require('../utils/constants');
 
@@ -34,6 +35,7 @@ const listAvailableRooms = async ({
 } = {}) => {
   const roomFilter = {
     status: { $nin: [ROOM_STATUS.MAINTENANCE, ROOM_STATUS.BOOKED, ROOM_STATUS.OCCUPIED] },
+    housekeepingStatus: { $in: [HOUSEKEEPING_STATUS.CLEAN, HOUSEKEEPING_STATUS.INSPECTED] },
     isActive: true,
   };
   if (campId) roomFilter.camp = campId;
@@ -68,6 +70,9 @@ const createRoom = async (data, actor) => {
 
   if (String(block.camp._id || block.camp) !== String(camp._id)) {
     throw ApiError.badRequest('Block does not belong to the selected camp.');
+  }
+  if (room.housekeepingStatus === 'Dirty') {
+    throw ApiError.conflict(`${room.label} is marked dirty and must be cleaned before assignment.`);
   }
 
   const blockName = block.name;
@@ -131,7 +136,7 @@ const updateRoom = async (id, data, actor) => {
     room.roomNumber = nextRoomNumber;
   }
 
-  ['capacity', 'status', 'notes', 'isActive'].forEach((field) => {
+  ['capacity', 'status', 'housekeepingStatus', 'notes', 'isActive'].forEach((field) => {
     if (data[field] !== undefined) room[field] = data[field];
   });
 

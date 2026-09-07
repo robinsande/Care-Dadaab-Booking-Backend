@@ -1,5 +1,10 @@
 const mongoose = require('mongoose');
-const { ROOM_STATUS, ROOM_STATUS_VALUES } = require('../utils/constants');
+const {
+  ROOM_STATUS,
+  ROOM_STATUS_VALUES,
+  HOUSEKEEPING_STATUS,
+  HOUSEKEEPING_STATUS_VALUES,
+} = require('../utils/constants');
 
 const roomSchema = new mongoose.Schema(
   {
@@ -35,6 +40,12 @@ const roomSchema = new mongoose.Schema(
       type: String,
       enum: ROOM_STATUS_VALUES,
       default: ROOM_STATUS.AVAILABLE,
+      required: true,
+    },
+    housekeepingStatus: {
+      type: String,
+      enum: HOUSEKEEPING_STATUS_VALUES,
+      default: HOUSEKEEPING_STATUS.CLEAN,
       required: true,
     },
     notes: {
