@@ -23,6 +23,12 @@ const listMine = asyncHandler(async (req, res) => {
 const listBookings = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Guest bookings retrieved.', data: await service.listBookingsForGuest(req.guest) });
 });
+const getInvoice = asyncHandler(async (req, res) => {
+  sendSuccess(res, {
+    message: 'Guest invoice retrieved.',
+    data: await service.getInvoiceForGuestBooking(req.guest, req.params.id),
+  });
+});
 const createForBooking = asyncHandler(async (req, res) => {
   sendSuccess(res, {
     statusCode: 201,
@@ -41,4 +47,4 @@ const resolve = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { listCamps, listCampRates, create, createForBooking, listMine, listBookings, listStaff, resolve };
+module.exports = { listCamps, listCampRates, create, createForBooking, listMine, listBookings, getInvoice, listStaff, resolve };

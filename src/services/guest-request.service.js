@@ -1,8 +1,9 @@
-const { GuestRequest, Booking, User } = require('../models');
+const { GuestRequest, Booking, User, Invoice } = require('../models');
 const ApiError = require('../utils/ApiError');
 const campService = require('./camp.service');
 const bookingService = require('./booking.service');
 const emailService = require('./email.service');
+const invoiceService = require('./invoice.service');
 const settingsService = require('./settings.service');
 const env = require('../config/env');
 
@@ -134,6 +135,15 @@ const listBookingsForGuest = (guest) =>
     .populate('room', 'blockName roomNumber')
     .sort({ arrivalDate: -1 });
 
+const getInvoiceForGuestBooking = async (guest, bookingId) => {
+  const booking = await getGuestBooking(guest, bookingId);
+  let invoice = await Invoice.findOne({ booking: booking._id }).lean();
+  if (!invoice) {
+    invoice = await invoiceService.generateInvoiceForBooking(booking, { mode: 'createIfMissing', notify: true });
+  }
+  return invoice;
+};
+
 const listForStaff = (query = {}) => GuestRequest.find(query)
   .populate('guest', 'firstName lastName email phone')
   .populate('booking', 'bookingReference status arrivalDate departureDate campName roomNumber')
@@ -212,6 +222,7 @@ module.exports = {
   createBookingRequestForGuest,
   listForGuest,
   listBookingsForGuest,
+  getInvoiceForGuestBooking,
   listForStaff,
   resolve,
   getGuestBooking,

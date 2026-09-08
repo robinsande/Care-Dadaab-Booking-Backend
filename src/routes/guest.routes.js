@@ -13,6 +13,7 @@ router.get('/camps/:campId/rates', validate([mongoIdParam('campId')]), controlle
 router.post('/requests', authenticateGuest, validate(bookingRequestRules), controller.create);
 router.get('/requests', authenticateGuest, controller.listMine);
 router.get('/bookings', authenticateGuest, controller.listBookings);
+router.get('/bookings/:id/invoice', authenticateGuest, validate([mongoIdParam('id')]), controller.getInvoice);
 router.post('/bookings/:id/requests', authenticateGuest, validate([mongoIdParam('id'), ...bookingRequestRules]), controller.createForBooking);
 router.use('/staff', authenticate, anyStaff);
 router.get('/staff/requests', validate(listRules), controller.listStaff);
