@@ -11,7 +11,7 @@ const getOccupiedRoomCount = async () => {
   const [bookingRoomIds, roomStatusIds] = await Promise.all([
     Booking.distinct('room', {
       $or: [
-        { status: { $regex: /^checked in$/i } },
+        { status: { $regex: /^checked in$/i }, checkedOutAt: null },
         { checkedInAt: { $ne: null }, checkedOutAt: null },
       ],
     }),
@@ -40,16 +40,19 @@ const getDashboard = async () => {
   ] = await Promise.all([
     Booking.countDocuments({
       status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN] },
+      checkedOutAt: null,
       arrivalDate: { $gte: todayStart, $lte: todayEnd },
     }),
     Booking.countDocuments({
       status: { $in: [BOOKING_STATUS.CHECKED_IN, BOOKING_STATUS.BOOKED] },
+      checkedOutAt: null,
       departureDate: { $gte: todayStart, $lte: todayEnd },
     }),
     getOccupiedRoomCount(),
     Room.countDocuments({ isActive: true }),
     Booking.distinct('room', {
       status: BOOKING_STATUS.BOOKED,
+      checkedOutAt: null,
       arrivalDate: { $lte: todayEnd },
       departureDate: { $gt: todayStart },
     }),

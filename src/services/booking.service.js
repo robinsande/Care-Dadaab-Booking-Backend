@@ -570,9 +570,16 @@ const checkOut = async (bookingId, actor, checkoutReason = null) => {
 };
 
 const autoCheckOutDueBookings = async () => {
+  const now = new Date();
+  const cutoffToday = new Date(now);
+  cutoffToday.setHours(17, 0, 0, 0);
+  const dueBefore = now >= cutoffToday
+    ? cutoffToday
+    : new Date(cutoffToday.getTime() - 24 * 60 * 60 * 1000);
+
   const dueBookings = await Booking.find({
     status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN] },
-    departureDate: { $lte: new Date() },
+    departureDate: { $lte: dueBefore },
   });
 
   for (const booking of dueBookings) {
