@@ -28,16 +28,12 @@ const recordEmailSent = (booking, emailType) =>
   });
 
 const getBookingNotificationRecipients = async (booking, actor = null) => {
-  const [staff, settings] = await Promise.all([
-    User.find({ isActive: true }).select('email').lean(),
-    settingsService.getSettings(),
-  ]);
+  const officer = booking.createdBy
+    ? await User.findById(booking.createdBy).select('email').lean()
+    : actor;
   return [...new Set([
     booking.guest.email,
-    actor?.email,
-    ...staff.map((user) => user.email),
-    settings.supportEmail,
-    env.support.email,
+    officer?.email || actor?.email,
   ].filter(Boolean))];
 };
 
@@ -159,19 +155,9 @@ const createBooking = async (payload, actor) => {
 
   await roomService.syncRoomStatus(room._id);
 
-  const settings = await settingsService.getSettings();
-  if (settings.notifications?.sendBookingConfirmation !== false) {
-    const recipients = await getBookingNotificationRecipients(booking, actor);
-    emailService.sendBookingCreated(booking, recipients)
-      .then(() => recordEmailSent(booking, 'Booking Created'))
-      .catch((error) => {
-        logger.warn(`Booking confirmation email failed: ${error.message}`);
-      });
-  }
-
   let invoice = null;
   try {
-    invoice = await invoiceService.generateInvoiceForBooking(booking, { mode: 'createIfMissing' });
+    invoice = await invoiceService.generateInvoiceForBooking(booking, { mode: 'createIfMissing', notify: false });
   } catch (invErr) {
     auditService.record({
       action: AUDIT_ACTIONS.EMAIL_SENT,
@@ -180,6 +166,15 @@ const createBooking = async (payload, actor) => {
       metadata: { error: invErr.message },
       message: `Invoice autogeneration skipped for ${booking.bookingReference}: ${invErr.message}.`,
     }).catch(() => {});
+  }
+  const settings = await settingsService.getSettings();
+  if (settings.notifications?.sendBookingConfirmation !== false) {
+    const recipients = await getBookingNotificationRecipients(booking, actor);
+    emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients)
+      .then(() => recordEmailSent(booking, 'Booking Confirmation and Invoice'))
+      .catch((error) => {
+        logger.warn(`Booking confirmation email failed: ${error.message}`);
+      });
   }
 
   return { booking, invoice };
@@ -194,10 +189,7 @@ const resendBookingEmails = async (bookingId, actor) => {
     notify: false,
   });
   const recipients = await getBookingNotificationRecipients(booking, actor);
-  const [bookingEmailSent, invoiceEmailSent] = await Promise.all([
-    emailService.sendBookingCreated(booking, recipients),
-    invoiceService.resendInvoiceEmail(booking, invoice),
-  ]);
+  const bookingEmailSent = await emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients);
 
   await auditService.record({
     action: AUDIT_ACTIONS.EMAIL_SENT,
@@ -208,7 +200,6 @@ const resendBookingEmails = async (bookingId, actor) => {
     metadata: {
       emailType: 'Booking and Invoice Resent',
       bookingEmailSent,
-      invoiceEmailSent,
       to: recipients,
     },
     message: `Booking and invoice emails resent for ${booking.bookingReference}.`,

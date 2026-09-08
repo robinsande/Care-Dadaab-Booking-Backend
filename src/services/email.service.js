@@ -139,6 +139,30 @@ const sendBookingCreated = (booking, recipients = booking.guest.email) => {
   });
 };
 
+const sendBookingConfirmationWithInvoice = (booking, invoice, recipients = booking.guest.email) => {
+  const payment = invoice?.paymentInstructions || {};
+  const body = `
+    <p>Dear ${booking.guest.firstName},</p>
+    <p>Your accommodation booking has been confirmed. Your invoice is included below.</p>
+    ${detailRow('Booking Reference', booking.bookingReference)}
+    ${detailRow('Camp', booking.campName)}
+    ${detailRow('Room', `Block ${booking.blockName} Room ${booking.roomNumber}`)}
+    ${detailRow('Arrival Date', formatDate(booking.arrivalDate))}
+    ${detailRow('Departure Date', formatDate(booking.departureDate))}
+    ${detailRow('Invoice Number', invoice?.invoiceNumber || 'Pending')}
+    ${invoice ? detailRow('Rate', `${invoice.appliedRate.currency} ${invoice.appliedRate.amount} per night`) : ''}
+    ${invoice ? detailRow('Total Amount', `${invoice.appliedRate.currency} ${invoice.totalAmount}`) : ''}
+    ${payment.mpesaPaybillNumber ? detailRow('M-Pesa Paybill', payment.mpesaPaybillNumber) : ''}
+    ${payment.bankName ? detailRow('Bank', payment.bankName) : ''}
+    ${payment.bankAccountNumber ? detailRow('Account Number', payment.bankAccountNumber) : ''}
+  `;
+  return sendEmail({
+    to: recipients,
+    subject: `Booking Confirmed and Invoice - ${booking.bookingReference}`,
+    html: layout('Booking Confirmation and Invoice', body),
+  });
+};
+
 const sendBookingUpdated = (booking, recipients = booking.guest.email) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
@@ -412,6 +436,7 @@ const sendGuestRequestNotification = (request, guest, recipients = []) => {
 module.exports = {
   sendEmail,
   sendBookingCreated,
+  sendBookingConfirmationWithInvoice,
   sendBookingUpdated,
   sendBookingExtended,
   sendBookingCancelled,
