@@ -11,6 +11,9 @@ const login = asyncHandler(async (req, res) => {
 const me = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Profile retrieved.', data: await authService.getProfile(req.guest._id) });
 });
+const updateProfile = asyncHandler(async (req, res) => {
+  sendSuccess(res, { message: 'Profile updated.', data: await authService.updateProfile(req.guest._id, req.body) });
+});
 const requestReset = asyncHandler(async (req, res) => {
   await authService.requestPasswordReset(req.body.email);
   sendSuccess(res, { message: 'If an account exists, a recovery link has been sent.' });
@@ -19,4 +22,4 @@ const reset = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Password reset successful.', data: await authService.resetPassword(req.body) });
 });
 
-module.exports = { register, login, me, requestReset, reset };
+module.exports = { register, login, me, updateProfile, requestReset, reset };

@@ -38,6 +38,26 @@ const getProfile = async (guestId) => {
   return publicGuest(guest);
 };
 
+const updateProfile = async (guestId, payload) => {
+  const guest = await Guest.findByIdAndUpdate(
+    guestId,
+    { $set: {
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      phone: payload.phone || '',
+      organisation: payload.organisation || '',
+      gender: payload.gender || '',
+      contractType: payload.contractType || '',
+      departureCountry: payload.departureCountry || '',
+      kenyaOffice: payload.kenyaOffice || '',
+      internationalCountry: payload.internationalCountry || '',
+    } },
+    { new: true, runValidators: true },
+  );
+  if (!guest || !guest.isActive) throw ApiError.notFound('Guest account not found.');
+  return publicGuest(guest);
+};
+
 const requestPasswordReset = async (email) => {
   const guest = await Guest.findOne({ email: String(email || '').trim().toLowerCase() });
   // Do not disclose whether an account exists.
@@ -64,4 +84,4 @@ const resetPassword = async ({ token, newPassword }) => {
   return { token: signToken(guest), guest: publicGuest(guest) };
 };
 
-module.exports = { signToken, register, login, getProfile, requestPasswordReset, resetPassword };
+module.exports = { signToken, register, login, getProfile, updateProfile, requestPasswordReset, resetPassword };
