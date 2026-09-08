@@ -20,6 +20,19 @@ const listRooms = (filter = {}) =>
 const listRoomsByCamp = (campId, filter = {}) =>
   listRooms({ camp: campId, ...filter });
 
+const listRoomsByCampBlock = async (campId, blockId) => {
+  const block = await Block.findOne({ _id: blockId, camp: campId }).select('name');
+  if (!block) return [];
+  return Room.find({
+    camp: campId,
+    $or: [{ block: block._id }, { blockName: block.name }],
+    isActive: true,
+  })
+    .populate('camp', 'name')
+    .populate('block', 'name')
+    .sort({ blockName: 1, roomNumber: 1 });
+};
+
 const listBlocksByCamp = async (campId) => {
   const blocks = await Block.find({ camp: campId, isActive: true })
     .select('name')
@@ -275,6 +288,7 @@ const syncAllRoomStatuses = async () => {
 module.exports = {
   listRooms,
   listRoomsByCamp,
+  listRoomsByCampBlock,
   listBlocksByCamp,
   listAvailableRooms,
   getRoomById,

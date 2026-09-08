@@ -3,6 +3,10 @@ const { sendSuccess } = require('../utils/ApiResponse');
 const roomService = require('../services/room.service');
 
 const listRooms = asyncHandler(async (req, res) => {
+  if (req.query.campId && req.query.blockId) {
+    const rooms = await roomService.listRoomsByCampBlock(req.query.campId, req.query.blockId);
+    return sendSuccess(res, { message: 'Rooms retrieved.', data: rooms });
+  }
   const filter = {};
   if (req.query.campId) filter.camp = req.query.campId;
   if (req.query.blockId) filter.block = req.query.blockId;
