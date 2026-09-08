@@ -38,6 +38,19 @@ const getCurrentRate = async (campId, stayType) => {
   return rate;
 };
 
+const getCurrentRatesForGuest = async (campId) => {
+  await campService.getCampById(campId);
+  return Rate.find({ camp: campId, effectiveTo: null })
+    .select('stayType amount currency notes')
+    .sort({ stayType: 1 });
+};
+
+const getCurrentRateById = async (campId, rateId, stayType) => {
+  const rate = await Rate.findOne({ _id: rateId, camp: campId, stayType, effectiveTo: null });
+  if (!rate) throw ApiError.badRequest('The selected rate is no longer available for this camp.');
+  return rate;
+};
+
 const createRateVersion = async (campId, data, actor) => {
   await campService.getCampById(campId);
 
@@ -80,5 +93,7 @@ module.exports = {
   getCurrentRatesForCamp,
   getRateHistory,
   getCurrentRate,
+  getCurrentRatesForGuest,
+  getCurrentRateById,
   createRateVersion,
 };

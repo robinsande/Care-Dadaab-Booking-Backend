@@ -97,8 +97,10 @@ const resolveLocation = async ({ campId, blockId, roomId }) => {
   return { camp, block, room };
 };
 
-const snapshotRate = async (campId, stayType) => {
-  const rate = await rateService.getCurrentRate(campId, stayType);
+const snapshotRate = async (campId, stayType, rateId) => {
+  const rate = rateId
+    ? await rateService.getCurrentRateById(campId, rateId, stayType)
+    : await rateService.getCurrentRate(campId, stayType);
   return {
     rateId: rate._id,
     amount: rate.amount,
@@ -122,7 +124,7 @@ const createBooking = async (payload, actor) => {
     departureDate: payload.departureDate,
   });
 
-  const appliedRate = await snapshotRate(camp._id, payload.stayType);
+  const appliedRate = await snapshotRate(camp._id, payload.stayType, payload.rateId);
   const bookingReference = await referenceService.generateBookingReference();
 
   const booking = await Booking.create({

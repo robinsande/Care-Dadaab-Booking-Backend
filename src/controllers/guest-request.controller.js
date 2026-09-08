@@ -2,9 +2,13 @@ const asyncHandler = require('../utils/asyncHandler');
 const { sendSuccess } = require('../utils/ApiResponse');
 const service = require('../services/guest-request.service');
 const campService = require('../services/camp.service');
+const rateService = require('../services/rate.service');
 
 const listCamps = asyncHandler(async (_req, res) => {
   sendSuccess(res, { message: 'Camps retrieved.', data: await campService.listActiveCamps() });
+});
+const listCampRates = asyncHandler(async (req, res) => {
+  sendSuccess(res, { message: 'Camp rates retrieved.', data: await rateService.getCurrentRatesForGuest(req.params.campId) });
 });
 const create = asyncHandler(async (req, res) => {
   sendSuccess(res, {
@@ -37,4 +41,4 @@ const resolve = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { listCamps, create, createForBooking, listMine, listBookings, listStaff, resolve };
+module.exports = { listCamps, listCampRates, create, createForBooking, listMine, listBookings, listStaff, resolve };

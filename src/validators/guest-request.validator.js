@@ -4,6 +4,7 @@ const { mongoIdParam } = require('./common.validator');
 const bookingRequestRules = [
   body('type').isIn(['booking', 'adjustment', 'early_checkout', 'extension']).withMessage('Invalid request type.'),
   body('campId').optional().isMongoId(),
+  body('rateId').optional().isMongoId(),
   body('bookingId').optional().isMongoId(),
   body('arrivalDate').optional().isISO8601(),
   body('departureDate').optional().isISO8601(),

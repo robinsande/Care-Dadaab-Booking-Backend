@@ -38,8 +38,8 @@ const assertDates = (arrivalDate, departureDate) => {
 };
 
 const createBookingRequest = async (guest, payload) => {
-  if (!payload.campId || !payload.arrivalDate || !payload.departureDate) {
-    throw ApiError.badRequest('Camp, arrival date and departure date are required.');
+  if (!payload.campId || !payload.rateId || !payload.arrivalDate || !payload.departureDate) {
+    throw ApiError.badRequest('Camp, room rate, arrival date and departure date are required.');
   }
   const { arrival, departure } = assertDates(payload.arrivalDate, payload.departureDate);
   const camp = await campService.getCampById(payload.campId);
@@ -65,6 +65,7 @@ const createBookingRequest = async (guest, payload) => {
       reasonForVisit: payload.reasonForVisit || payload.reason || '',
       remarks: payload.remarks || '',
       driverPickup: Boolean(payload.driverPickup),
+      rateId: payload.rateId || '',
     },
   });
   await notify(request, guest);
@@ -179,6 +180,7 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
       reasonForVisit: request.requestedData?.reasonForVisit || request.reason,
       remarks: request.requestedData?.remarks,
       driverPickup: request.requestedData?.driverPickup,
+      rateId: request.requestedData?.rateId,
       guestAccountId: request.guest._id,
     }, actor)).booking;
   } else {
@@ -201,7 +203,7 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
   request.resolvedBy = actor._id;
   request.resolvedAt = new Date();
   await request.save();
-  await request.populate('booking', 'bookingReference status arrivalDate departureDate campName roomNumber');
+  await request.populate('booking', 'bookingReference status arrivalDate departureDate campName blockName roomNumber appliedRate');
   await notify(request, request.guest);
   return request;
 };

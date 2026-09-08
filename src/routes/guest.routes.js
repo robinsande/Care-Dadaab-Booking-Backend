@@ -9,6 +9,7 @@ const { bookingRequestRules, resolveRules, listRules } = require('../validators/
 
 const router = express.Router();
 router.get('/camps', controller.listCamps);
+router.get('/camps/:campId/rates', validate([mongoIdParam('campId')]), controller.listCampRates);
 router.post('/requests', authenticateGuest, validate(bookingRequestRules), controller.create);
 router.get('/requests', authenticateGuest, controller.listMine);
 router.get('/bookings', authenticateGuest, controller.listBookings);

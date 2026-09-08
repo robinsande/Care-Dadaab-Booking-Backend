@@ -395,6 +395,7 @@ const sendGuestRequestNotification = (request, guest, recipients = []) => {
     <p>Your guest portal request has been <strong>${request.status || 'submitted'}</strong>.</p>
     ${detailRow('Request Type', request.type)}
     ${detailRow('Booking', reference)}
+    ${request.booking?.appliedRate ? detailRow('Room rate', `${request.booking.appliedRate.currency} ${request.booking.appliedRate.amount} per night`) : ''}
     ${request.reason ? detailRow('Reason', request.reason) : ''}
     <p>Staff will review the request and contact you with any further details.</p>
     <p><a href="${env.adminPanelUrl}">Open the booking panel</a></p>
