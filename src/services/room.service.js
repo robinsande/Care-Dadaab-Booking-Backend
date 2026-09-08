@@ -25,8 +25,10 @@ const listRoomsByCampBlock = async (campId, blockId) => {
   if (!block) return [];
   return Room.find({
     camp: campId,
-    $or: [{ block: block._id }, { blockName: block.name }],
-    isActive: true,
+    $and: [
+      { $or: [{ block: block._id }, { blockName: block.name }] },
+      { $or: [{ isActive: true }, { isActive: { $exists: false } }] },
+    ],
   })
     .populate('camp', 'name')
     .populate('block', 'name')
