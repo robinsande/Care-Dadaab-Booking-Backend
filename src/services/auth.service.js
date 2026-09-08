@@ -13,7 +13,7 @@ const { ACTOR_TYPE, AUDIT_ACTIONS } = require('../utils/constants');
  * @returns {string} Signed JWT.
  */
 const signToken = (user) =>
-  jwt.sign({ sub: user._id.toString(), role: user.role }, env.jwtSecret, {
+  jwt.sign({ sub: user._id.toString(), role: user.role, type: 'staff' }, env.jwtSecret, {
     expiresIn: env.jwtExpiresIn,
   });
 

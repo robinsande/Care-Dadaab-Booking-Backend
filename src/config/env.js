@@ -25,6 +25,7 @@ const env = {
   isProduction: (process.env.NODE_ENV || 'development') === 'production',
   port: parseInt(process.env.PORT, 10) || 5000,
   apiPrefix: process.env.API_PREFIX || '/api/v1',
+  adminPanelUrl: process.env.ADMIN_PANEL_URL || '/admin/bookings.html',
 
   mongoUri: process.env.MONGODB_URI,
 

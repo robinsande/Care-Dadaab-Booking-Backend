@@ -10,6 +10,7 @@ const emailService = require('./email.service');
 const settingsService = require('./settings.service');
 const auditService = require('./audit.service');
 const logger = require('../utils/logger');
+const env = require('../config/env');
 const { calculateNights } = require('../utils/dates');
 const {
   BOOKING_STATUS,
@@ -26,27 +27,43 @@ const recordEmailSent = (booking, emailType) =>
     message: `${emailType} email dispatched to ${booking.guest.email}.`,
   });
 
-const dispatchCheckoutEmail = (booking) =>
-  emailService.sendBookingCheckedOut(booking)
-    .then((sent) => {
-      if (sent) return recordEmailSent(booking, 'Booking Checked Out');
-      return null;
-    })
-    .catch((error) => {
-      logger.warn(`Checkout email failed for ${booking.bookingReference}: ${error.message}`);
-      return null;
-    });
+const getBookingNotificationRecipients = async (booking, actor = null) => {
+  const [staff, settings] = await Promise.all([
+    User.find({ isActive: true }).select('email').lean(),
+    settingsService.getSettings(),
+  ]);
+  return [...new Set([
+    booking.guest.email,
+    actor?.email,
+    ...staff.map((user) => user.email),
+    settings.supportEmail,
+    env.support.email,
+  ].filter(Boolean))];
+};
 
-const dispatchCheckinEmail = (booking) =>
-  emailService.sendBookingCheckedIn(booking)
-    .then((sent) => {
-      if (sent) return recordEmailSent(booking, 'Booking Checked In');
-      return null;
-    })
-    .catch((error) => {
-      logger.warn(`Check-in email failed for ${booking.bookingReference}: ${error.message}`);
-      return null;
-    });
+const dispatchCheckoutEmail = async (booking) => {
+  try {
+    const sent = await emailService.sendBookingCheckedOut(
+      booking,
+      await getBookingNotificationRecipients(booking)
+    );
+    if (sent) await recordEmailSent(booking, 'Booking Checked Out');
+  } catch (error) {
+    logger.warn(`Checkout email failed for ${booking.bookingReference}: ${error.message}`);
+  }
+};
+
+const dispatchCheckinEmail = async (booking) => {
+  try {
+    const sent = await emailService.sendBookingCheckedIn(
+      booking,
+      await getBookingNotificationRecipients(booking)
+    );
+    if (sent) await recordEmailSent(booking, 'Booking Checked In');
+  } catch (error) {
+    logger.warn(`Check-in email failed for ${booking.bookingReference}: ${error.message}`);
+  }
+};
 
 const buildGuestPayload = (payload) => ({
   firstName: payload.firstName,
@@ -126,6 +143,7 @@ const createBooking = async (payload, actor) => {
     stayType: payload.stayType,
     appliedRate,
     createdBy: actor._id,
+    guestAccount: payload.guestAccountId || null,
   });
 
   await auditService.record({
@@ -141,7 +159,7 @@ const createBooking = async (payload, actor) => {
 
   const settings = await settingsService.getSettings();
   if (settings.notifications?.sendBookingConfirmation !== false) {
-    const recipients = [...new Set([booking.guest.email, actor.email].filter(Boolean))];
+    const recipients = await getBookingNotificationRecipients(booking, actor);
     emailService.sendBookingCreated(booking, recipients)
       .then(() => recordEmailSent(booking, 'Booking Created'))
       .catch((error) => {
@@ -173,7 +191,7 @@ const resendBookingEmails = async (bookingId, actor) => {
     mode: 'createIfMissing',
     notify: false,
   });
-  const recipients = [...new Set([booking.guest.email, actor.email].filter(Boolean))];
+  const recipients = await getBookingNotificationRecipients(booking, actor);
   const [bookingEmailSent, invoiceEmailSent] = await Promise.all([
     emailService.sendBookingCreated(booking, recipients),
     invoiceService.resendInvoiceEmail(booking, invoice),
@@ -389,7 +407,7 @@ const updateBooking = async (bookingId, payload, actor) => {
     message: `Booking ${booking.bookingReference} updated.`,
   });
 
-  await emailService.sendBookingUpdated(booking);
+  await emailService.sendBookingUpdated(booking, await getBookingNotificationRecipients(booking, actor));
   await recordEmailSent(booking, 'Booking Updated');
 
   try {
@@ -431,7 +449,7 @@ const cancelBooking = async (bookingId, { reason }, actor) => {
     message: `Booking ${booking.bookingReference} cancelled.`,
   });
 
-  await emailService.sendBookingCancelled(booking);
+  await emailService.sendBookingCancelled(booking, await getBookingNotificationRecipients(booking, actor));
   await recordEmailSent(booking, 'Booking Cancelled');
 
   return booking;
@@ -517,7 +535,7 @@ const extendStay = async (bookingId, { newDepartureDate, reason, additionalCost 
   const invoice = await invoiceService.generateInvoiceForBooking(booking, { mode: 'upsert', notify: false });
   const extendedBy = await User.findById(actor._id).select('email firstName lastName').lean();
   const emailExtension = { ...extension, extendedBy };
-  emailService.sendBookingExtended(booking, emailExtension)
+  emailService.sendBookingExtended(booking, emailExtension, await getBookingNotificationRecipients(booking, actor))
     .then((sent) => {
       if (sent) return recordEmailSent(booking, 'Booking Extended');
       return null;

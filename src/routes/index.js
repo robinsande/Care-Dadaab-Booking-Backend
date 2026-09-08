@@ -10,6 +10,8 @@ const userRoutes = require('./user.routes');
 const settingsRoutes = require('./settings.routes');
 const dashboardRoutes = require('./dashboard.routes');
 const mpesaRoutes = require('./mpesa.routes');
+const guestAuthRoutes = require('./guest-auth.routes');
+const guestRoutes = require('./guest.routes');
 
 const router = express.Router();
 
@@ -18,6 +20,8 @@ router.get('/health', (_req, res) => {
 });
 
 router.use('/auth', authRoutes);
+router.use('/guest/auth', guestAuthRoutes);
+router.use('/guest', guestRoutes);
 router.use('/camps', campRoutes);
 router.use('/camps/:campId/rates', rateRoutes);
 router.use('/bookings', bookingRoutes);

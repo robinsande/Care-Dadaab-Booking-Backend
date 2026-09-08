@@ -13,4 +13,6 @@ module.exports = {
   AuditLog: require('./AuditLog'),
   MpesaTransaction: require('./MpesaTransaction'),
   ReminderLog: require('./ReminderLog'),
+  Guest: require('./Guest'),
+  GuestRequest: require('./GuestRequest'),
 };

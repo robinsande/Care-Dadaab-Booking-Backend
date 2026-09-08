@@ -47,6 +47,12 @@ const bookingSchema = new mongoose.Schema(
       type: guestSchema,
       required: true,
     },
+    guestAccount: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Guest',
+      default: null,
+      index: true,
+    },
 
     reasonForVisit: { type: String, trim: true },
     remarks: { type: String, trim: true },

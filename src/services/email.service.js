@@ -93,6 +93,7 @@ const layout = (title, bodyHtml) => `
       <p style="font-size:12px; color:#6b7280;">
         Need help? Contact us at ${env.support.email}${env.support.phone ? ` or ${env.support.phone}` : ''}.
       </p>
+      <p style="font-size:12px;"><a href="${env.adminPanelUrl}">Open booking panel</a></p>
     </div>
   </div>
 `;
@@ -114,6 +115,7 @@ const sendBookingCreated = (booking, recipients = booking.guest.email) => {
     <p style="background:#fef3c7; padding:12px; border-radius:6px;">
       <strong>Please save this Booking Reference</strong> for your records and when contacting CARE.
     </p>
+    <p><a href="${env.adminPanelUrl}">Open the booking panel</a></p>
   `;
   return sendEmail({
     to: recipients,
@@ -132,11 +134,12 @@ const sendBookingCreated = (booking, recipients = booking.guest.email) => {
       `Status: ${booking.status}`,
       '',
       'Please save this Booking Reference for your records and when contacting CARE.',
+      `Booking panel: ${env.adminPanelUrl}`,
     ].join('\n'),
   });
 };
 
-const sendBookingUpdated = (booking) => {
+const sendBookingUpdated = (booking, recipients = booking.guest.email) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
     <p>Your accommodation booking has been <strong>updated</strong>.</p>
@@ -149,13 +152,13 @@ const sendBookingUpdated = (booking) => {
     ${detailRow('Status', booking.status)}
   `;
   return sendEmail({
-    to: booking.guest.email,
+    to: recipients,
     subject: `Booking Updated - ${booking.bookingReference}`,
     html: layout('Booking Updated', body),
   });
 };
 
-const sendBookingExtended = (booking, extension) => {
+const sendBookingExtended = (booking, extension, recipients = [booking.guest.email, extension.extendedBy?.email]) => {
   const currency = booking.appliedRate?.currency || 'KES';
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
@@ -167,7 +170,7 @@ const sendBookingExtended = (booking, extension) => {
     <p>Your updated invoice reflects the extended stay and additional cost.</p>
   `;
   return sendEmail({
-    to: [booking.guest.email, extension.extendedBy?.email].filter(Boolean),
+    to: recipients,
     subject: `Stay Extended - ${booking.bookingReference}`,
     html: layout('Accommodation Stay Extended', body),
     text: [
@@ -184,7 +187,7 @@ const sendBookingExtended = (booking, extension) => {
   });
 };
 
-const sendBookingCancelled = (booking) => {
+const sendBookingCancelled = (booking, recipients = booking.guest.email) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
     <p>Your accommodation booking has been <strong>cancelled</strong>.</p>
@@ -193,13 +196,13 @@ const sendBookingCancelled = (booking) => {
     ${detailRow('Status', booking.status)}
   `;
   return sendEmail({
-    to: booking.guest.email,
+    to: recipients,
     subject: `Booking Cancelled - ${booking.bookingReference}`,
     html: layout('Booking Cancelled', body),
   });
 };
 
-const sendBookingCheckedIn = (booking) => {
+const sendBookingCheckedIn = (booking, recipients = booking.guest.email) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
     <p>Your arrival has been <strong>checked in</strong>.</p>
@@ -211,7 +214,7 @@ const sendBookingCheckedIn = (booking) => {
     ${detailRow('Status', booking.status)}
   `;
   return sendEmail({
-    to: booking.guest.email,
+    to: recipients,
     subject: `Checked In - ${booking.bookingReference}`,
     html: layout('Accommodation Check-in', body),
     text: [
@@ -228,7 +231,7 @@ const sendBookingCheckedIn = (booking) => {
   });
 };
 
-const sendBookingCheckedOut = (booking) => {
+const sendBookingCheckedOut = (booking, recipients = booking.guest.email) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
     <p>Your accommodation stay has been <strong>checked out</strong>.</p>
@@ -243,7 +246,7 @@ const sendBookingCheckedOut = (booking) => {
     <p>Warm regards,<br>CARE Accommodation</p>
   `;
   return sendEmail({
-    to: booking.guest.email,
+    to: recipients,
     subject: `Checked Out - ${booking.bookingReference}`,
     html: layout('Accommodation Check-out', body),
     text: [
@@ -368,6 +371,43 @@ const sendInvoicePaid = (invoice) => {
   });
 };
 
+const sendGuestPasswordReset = (guest, token) => {
+  const base = env.adminPanelUrl.replace(/\/admin\/bookings\.html.*$/, '');
+  const link = `${base}/guest/index.html?resetToken=${encodeURIComponent(token)}`;
+  const body = `
+    <p>Dear ${guest.firstName},</p>
+    <p>Use the link below to set a new password for your CARE guest account. This link expires in 30 minutes.</p>
+    <p><a href="${link}">${link}</a></p>
+  `;
+  return sendEmail({
+    to: guest.email,
+    subject: 'CARE guest account password recovery',
+    html: layout('Password Recovery', body),
+    text: `Use this link to reset your CARE guest account password (expires in 30 minutes): ${link}`,
+  });
+};
+
+const sendGuestRequestNotification = (request, guest, recipients = []) => {
+  const guestName = guest?.firstName || request.guest?.firstName || 'Guest';
+  const reference = request.booking?.bookingReference || request.bookingReference || 'new booking request';
+  const body = `
+    <p>Dear ${guestName},</p>
+    <p>Your guest portal request has been <strong>${request.status || 'submitted'}</strong>.</p>
+    ${detailRow('Request Type', request.type)}
+    ${detailRow('Booking', reference)}
+    ${request.reason ? detailRow('Reason', request.reason) : ''}
+    <p>Staff will review the request and contact you with any further details.</p>
+    <p><a href="${env.adminPanelUrl}">Open the booking panel</a></p>
+  `;
+  const to = [...new Set([guest?.email, request.guest?.email, ...recipients].filter(Boolean))];
+  return sendEmail({
+    to,
+    subject: `Guest ${request.type} request - ${reference}`,
+    html: layout('Guest Request Update', body),
+    text: `Your ${request.type} request for ${reference} is ${request.status || 'submitted'}.\nBooking panel: ${env.adminPanelUrl}`,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendBookingCreated,
@@ -379,4 +419,6 @@ module.exports = {
   sendBookingReminder,
   sendInvoiceGenerated,
   sendInvoicePaid,
+  sendGuestPasswordReset,
+  sendGuestRequestNotification,
 };

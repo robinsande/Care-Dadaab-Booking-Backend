@@ -49,6 +49,9 @@ const authenticate = asyncHandler(async (req, _res, next) => {
   }
 
   const uid = String(payload.sub);
+  if (payload.type === 'guest') {
+    throw ApiError.unauthorized('A staff session is required.');
+  }
   let user = getCachedUser(uid);
   if (user) {
     if (!user.isActive) {
