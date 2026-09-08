@@ -92,12 +92,19 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', no
   }
 
   const invoiceNumber = await referenceService.generateInvoiceNumber();
-  const invoice = await Invoice.create({
-    invoiceNumber,
-    booking: booking._id,
-    ...snapshot,
-    generatedAt: new Date(),
-  });
+  let invoice;
+  try {
+    invoice = await Invoice.create({
+      invoiceNumber,
+      booking: booking._id,
+      ...snapshot,
+      generatedAt: new Date(),
+    });
+  } catch (error) {
+    if (error?.code !== 11000 || mode !== 'createIfMissing') throw error;
+    invoice = await Invoice.findOne({ booking: booking._id });
+    if (!invoice) throw error;
+  }
 
   await auditService.record({
     action: AUDIT_ACTIONS.INVOICE_GENERATED,

@@ -90,8 +90,8 @@ const invoiceSchema = new mongoose.Schema(
     },
     paidAt: { type: Date, default: null },
     paymentMethod: { type: String, trim: true, default: null },
-    paymentTransactionId: { type: String, trim: true, default: null, unique: true, sparse: true },
-    paymentPhoneNumber: { type: String, trim: true, default: null },
+    paymentTransactionId: { type: String, trim: true, default: undefined, unique: true, sparse: true },
+    paymentPhoneNumber: { type: String, trim: true, default: undefined },
     paymentCheckoutRequestId: { type: String, trim: true, default: null, index: true },
 
     recipientOfficer: {
