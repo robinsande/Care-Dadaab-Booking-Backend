@@ -9,6 +9,18 @@ const bookingRequestRules = [
   body('departureDate').optional().isISO8601(),
   body('newDepartureDate').optional().isISO8601(),
   body('stayType').optional().isIn(['Short Stay', 'Long Stay']),
+  body('firstName').optional().trim(),
+  body('lastName').optional().trim(),
+  body('phone').optional().trim(),
+  body('organisation').optional().trim(),
+  body('gender').optional().isIn(['Male', 'Female']),
+  body('contractType').optional().trim(),
+  body('kenyaOffice').optional().trim(),
+  body('internationalCountry').optional().trim(),
+  body('departureCountry').optional().isIn(['Local (Kenyan)', 'International']),
+  body('reasonForVisit').optional().trim(),
+  body('remarks').optional().trim(),
+  body('driverPickup').optional().isBoolean(),
   body('reason').optional().trim(),
 ];
 const resolveRules = [
