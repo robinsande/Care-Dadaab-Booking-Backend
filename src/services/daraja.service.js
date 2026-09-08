@@ -10,9 +10,6 @@ const baseUrl = () =>
     ? 'https://api.safaricom.co.ke'
     : 'https://sandbox.safaricom.co.ke';
 
-const isCareStaff = (contractType = '') =>
-  /care\s*staff|^staff$/i.test(String(contractType).trim());
-
 const parseTransactionDate = (value) => {
   if (!value) return new Date();
   const text = String(value);
@@ -103,7 +100,7 @@ const initiateStkPush = async (invoiceId, phoneNumber) => {
   if (invoice.paymentStatus === INVOICE_PAYMENT_STATUS.PAID) {
     throw new Error('This invoice is already paid.');
   }
-  if (isCareStaff(invoice.guest?.contractType)) {
+  if (invoiceService.isNonBillableCareStaff(invoice.guest)) {
     throw new Error('CARE staff payments are handled by the organisation.');
   }
   if (!env.daraja.callbackBaseUrl || !env.daraja.passkey || !env.daraja.stkShortCode) {
@@ -186,7 +183,7 @@ const validatePayment = async (payload) => {
   if (!reference || !payload.TransID) return { ResultCode: 'C2B00011', ResultDesc: 'Invalid payment reference.' };
   const invoice = await Invoice.findOne({ bookingReference: reference });
   if (!invoice) return { ResultCode: 'C2B00011', ResultDesc: 'Invoice not found.' };
-  if (isCareStaff(invoice.guest?.contractType)) {
+  if (invoiceService.isNonBillableCareStaff(invoice.guest)) {
     return { ResultCode: 'C2B00011', ResultDesc: 'CARE staff payments are handled by the organisation.' };
   }
   if (Number(payload.TransAmount) !== Number(invoice.totalAmount)) {
@@ -199,7 +196,7 @@ const processConfirmation = async (payload) => {
   const reference = String(payload.BillRefNumber || '').trim();
   const invoice = await Invoice.findOne({ bookingReference: reference });
   if (!invoice) throw new Error(`No invoice found for booking reference ${reference}.`);
-  if (isCareStaff(invoice.guest?.contractType)) {
+  if (invoiceService.isNonBillableCareStaff(invoice.guest)) {
     logger.warn(`Ignored Daraja payment for CARE staff booking ${reference}.`);
     return invoice;
   }

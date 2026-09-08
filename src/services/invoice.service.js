@@ -17,6 +17,10 @@ const { calculateNights } = require('../utils/dates');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 
+const isNonBillableCareStaff = (guest = {}) =>
+  /^care\s+kenya$/i.test(String(guest.organisation || '').trim())
+  && /^(?:care\s*)?staff$/i.test(String(guest.contractType || '').trim());
+
 const buildInvoiceSnapshot = async (booking) => {
   const settings = await settingsService.getSettings();
   const numberOfNights = calculateNights(booking.arrivalDate, booking.departureDate);
@@ -59,6 +63,8 @@ const buildInvoiceSnapshot = async (booking) => {
 };
 
 const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', notify = true } = {}) => {
+  if (isNonBillableCareStaff(booking.guest)) return null;
+
   const snapshot = await buildInvoiceSnapshot(booking);
 
   if (mode === 'createIfMissing') {
@@ -198,6 +204,9 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
 
   const invoice = await Invoice.findById(id);
   if (!invoice) throw ApiError.notFound('Invoice not found.');
+  if (isNonBillableCareStaff(invoice.guest)) {
+    throw ApiError.badRequest('CARE Kenya staff accommodation is billed through the organisation.');
+  }
   const paymentCompleted =
     paymentStatus === INVOICE_PAYMENT_STATUS.PAID
     && invoice.paymentStatus !== INVOICE_PAYMENT_STATUS.PAID;
@@ -310,6 +319,7 @@ const generateInvoicePdfBuffer = (invoice) =>
   });
 
 module.exports = {
+  isNonBillableCareStaff,
   generateInvoiceForBooking,
   listInvoices,
   getInvoiceById,
