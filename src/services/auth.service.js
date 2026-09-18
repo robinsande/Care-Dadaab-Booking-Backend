@@ -29,6 +29,13 @@ const verifyCode = (secret, token) => speakeasy.totp.verify({
   window: 1,
 });
 
+const createMfaQrCode = (secret, email) => {
+  const label = encodeURIComponent(`${env.mfaIssuer}:${email}`);
+  const issuer = encodeURIComponent(env.mfaIssuer);
+  const otpauthUrl = `otpauth://totp/${label}?secret=${encodeURIComponent(secret)}&issuer=${issuer}`;
+  return QRCode.toDataURL(otpauthUrl, { type: 'image/png' });
+};
+
 /**
  * Authenticate a staff user with email + password and issue a JWT.
  *
@@ -58,15 +65,14 @@ const login = async ({ email, password }) => {
       issuer: env.mfaIssuer,
       length: 20,
     });
-    const otpauthUrl = secret.otpauth_url;
-    if (!otpauthUrl) {
+    if (!secret.otpauth_url) {
       throw ApiError.internal('Unable to create the Microsoft Authenticator setup code.');
     }
     return {
       mfaRequired: true,
       mfaSetupRequired: true,
       mfaToken: signMfaChallenge(user, 'setup', secret.base32),
-      qrCodeDataUrl: await QRCode.toDataURL(otpauthUrl, { type: 'image/png' }),
+      qrCodeDataUrl: await createMfaQrCode(secret.base32, user.email),
       manualKey: secret.base32,
       user: user.toJSON(),
     };
@@ -76,6 +82,7 @@ const login = async ({ email, password }) => {
     mfaRequired: true,
     mfaSetupRequired: false,
     mfaToken: signMfaChallenge(user, 'verify'),
+    qrCodeDataUrl: await createMfaQrCode(user.mfaSecret, user.email),
     user: user.toJSON(),
   };
 };
