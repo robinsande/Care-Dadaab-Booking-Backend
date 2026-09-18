@@ -50,7 +50,9 @@ const login = async ({ email, password }) => {
     throw ApiError.forbidden('Your account has been deactivated. Contact a Super Admin.');
   }
 
-  if (!user.mfaEnabled) {
+  const requiresMfaSetup = !user.mfaEnabled || !user.mfaSecret;
+
+  if (requiresMfaSetup) {
     const secret = speakeasy.generateSecret({
       name: `${env.mfaIssuer}:${user.email}`,
       issuer: env.mfaIssuer,
