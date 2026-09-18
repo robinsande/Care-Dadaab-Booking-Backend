@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
 
 const env = require('./config/env');
 const routes = require('./routes');
@@ -51,6 +52,18 @@ const limiter = rateLimit({
   },
 });
 app.use(env.apiPrefix, limiter);
+
+// Bind the HTTP server even when MongoDB is still connecting. This keeps the
+// health endpoint responsive and prevents database buffering from looking like
+// a network timeout to clients.
+app.use(env.apiPrefix, (req, res, next) => {
+  if (req.path === '/health' || mongoose.connection.readyState === 1) return next();
+  return res.status(503).json({
+    success: false,
+    message: 'The CAMS database is still starting. Please retry shortly.',
+    errors: [],
+  });
+});
 
 // API routes.
 app.use(env.apiPrefix, routes);

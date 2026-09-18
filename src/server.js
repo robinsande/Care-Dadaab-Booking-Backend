@@ -12,8 +12,6 @@ const { runReminderSweep } = require('./services/reminder.service');
  * Handles graceful shutdown and unexpected process-level errors.
  */
 const start = async () => {
-  await connectDB();
-
   const runMaintenance = () =>
     Promise.all([autoCheckOutDueBookings(), syncAllRoomStatuses(), runReminderSweep()])
       .catch((error) => logger.error(`Maintenance sync failed: ${error.message}`));
@@ -28,8 +26,20 @@ const start = async () => {
     logger.info(`API base path: ${env.apiPrefix}`);
     logger.info(`Local URL:     http://localhost:${env.port}${env.apiPrefix}`);
     logger.info(`IPv4 direct:   http://127.0.0.1:${env.port}${env.apiPrefix}`);
-    runMaintenance();
   });
+
+  const connectWithRetry = async () => {
+    try {
+      await connectDB();
+      runMaintenance();
+    } catch (error) {
+      logger.warn(`MongoDB unavailable; retrying in 5 seconds: ${error.message}`);
+      const retry = setTimeout(connectWithRetry, 5000);
+      retry.unref();
+    }
+  };
+
+  connectWithRetry();
 
   setTimeout(async () => {
     try {
