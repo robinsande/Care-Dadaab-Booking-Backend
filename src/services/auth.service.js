@@ -58,11 +58,15 @@ const login = async ({ email, password }) => {
       issuer: env.mfaIssuer,
       length: 20,
     });
+    const otpauthUrl = secret.otpauth_url;
+    if (!otpauthUrl) {
+      throw ApiError.internal('Unable to create the Microsoft Authenticator setup code.');
+    }
     return {
       mfaRequired: true,
       mfaSetupRequired: true,
       mfaToken: signMfaChallenge(user, 'setup', secret.base32),
-      qrCodeDataUrl: await QRCode.toDataURL(secret.otpauth_url),
+      qrCodeDataUrl: await QRCode.toDataURL(otpauthUrl, { type: 'image/png' }),
       manualKey: secret.base32,
       user: user.toJSON(),
     };
