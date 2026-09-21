@@ -81,8 +81,9 @@ const reportRoomUtilization = async (query) => {
   const campFilter = query.campId ? { camp: query.campId, isActive: true } : { isActive: true };
   const rooms = await Room.find(campFilter)
     .select('blockName roomNumber camp')
-    .populate('camp', 'name');
-  const camps = await Camp.find(query.campId ? { _id: query.campId } : { isActive: true });
+    .lean();
+  const camps = await Camp.find(query.campId ? { _id: query.campId } : { isActive: true }).select('_id name').lean();
+  const campNames = new Map(camps.map((camp) => [String(camp._id), camp.name]));
 
   const bookingFilter = {
     status: { $in: ACTIVE_BOOKING_STATUSES },
@@ -90,12 +91,12 @@ const reportRoomUtilization = async (query) => {
   };
   if (query.campId) bookingFilter.camp = query.campId;
 
-  const activeBookings = await Booking.find(bookingFilter).select('room');
+  const activeBookings = await Booking.find(bookingFilter).select('room').lean();
 
   const bookedRoomIds = new Set(activeBookings.map((b) => String(b.room)));
 
   const rows = rooms.map((room) => ({
-    camp: room.camp?.name || camps.find((c) => String(c._id) === String(room.camp))?.name || '',
+    camp: campNames.get(String(room.camp)) || '',
     block: room.blockName,
     roomNumber: room.roomNumber,
     utilized: bookedRoomIds.has(String(room._id)),

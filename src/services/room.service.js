@@ -86,9 +86,6 @@ const createRoom = async (data, actor) => {
   if (String(block.camp._id || block.camp) !== String(camp._id)) {
     throw ApiError.badRequest('Block does not belong to the selected camp.');
   }
-  if (room.housekeepingStatus === 'Dirty') {
-    throw ApiError.conflict(`${room.label} is marked dirty and must be cleaned before assignment.`);
-  }
 
   const blockName = block.name;
   const existing = await Room.findOne({
@@ -226,7 +223,11 @@ const assertRoomAssignable = async ({
     throw ApiError.conflict(`${room.label} is under maintenance and cannot be assigned.`);
   }
 
-  if ([ROOM_STATUS.BOOKED, ROOM_STATUS.OCCUPIED].includes(room.status)) {
+  if (room.housekeepingStatus === HOUSEKEEPING_STATUS.DIRTY) {
+    throw ApiError.conflict(`${room.label} is marked dirty and must be cleaned before assignment.`);
+  }
+
+  if (!arrivalDate && !departureDate && [ROOM_STATUS.BOOKED, ROOM_STATUS.OCCUPIED].includes(room.status)) {
     const activeRoomBooking = await Booking.findOne({
       room: room._id,
       status: { $in: ACTIVE_BOOKING_STATUSES },

@@ -61,6 +61,10 @@ const roomSchema = new mongoose.Schema(
 );
 
 roomSchema.index({ camp: 1, blockName: 1, roomNumber: 1 }, { unique: true });
+roomSchema.index({ isActive: 1, status: 1 });
+roomSchema.index({ isActive: 1, housekeepingStatus: 1 });
+roomSchema.index({ camp: 1, isActive: 1, status: 1 });
+roomSchema.index({ status: 1, isActive: 1, housekeepingStatus: 1 });
 
 roomSchema.virtual('label').get(function label() {
   return `Block ${this.blockName} Room ${this.roomNumber}`;

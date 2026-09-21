@@ -108,6 +108,10 @@ const invoiceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+invoiceSchema.index({ paymentStatus: 1, generatedAt: -1 });
+invoiceSchema.index({ campName: 1, generatedAt: -1 });
+invoiceSchema.index({ bookingReference: 1 });
+
 invoiceSchema.set('toJSON', {
   transform: (_doc, ret) => {
     delete ret.__v;

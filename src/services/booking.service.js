@@ -105,6 +105,18 @@ const snapshotRate = async (campId, stayType, rateId) => {
   };
 };
 
+const resolveAppliedRate = async ({ campId, stayType, fallbackRate, rateId }) => {
+  if (rateId) {
+    return snapshotRate(campId, stayType, rateId);
+  }
+
+  if (fallbackRate && (!stayType || stayType === fallbackRate.stayType)) {
+    return fallbackRate;
+  }
+
+  return snapshotRate(campId, stayType || fallbackRate?.stayType, rateId);
+};
+
 const createBooking = async (payload, actor) => {
   const { camp, block, room } = await resolveLocation({
     campId: payload.campId,
@@ -209,7 +221,7 @@ const resendBookingEmails = async (bookingId, actor) => {
     bookingReference: booking.bookingReference,
     invoiceNumber: invoice.invoiceNumber,
     bookingEmailSent,
-    invoiceEmailSent,
+    invoiceEmailSent: bookingEmailSent,
     recipients,
   };
 };
@@ -352,6 +364,10 @@ const updateBooking = async (bookingId, payload, actor) => {
     const arrivalDate = payload.arrivalDate || booking.arrivalDate;
     const departureDate = payload.departureDate || booking.departureDate;
 
+    if (new Date(departureDate) <= new Date(arrivalDate)) {
+      throw ApiError.badRequest('Departure date must be after the arrival date.');
+    }
+
     if (locationChanging || datesChanging || stayTypeChanging) {
       const campId = payload.campId || booking.camp;
       const blockId = payload.blockId || booking.block;
@@ -376,7 +392,15 @@ const updateBooking = async (bookingId, payload, actor) => {
       booking.room = room._id;
       booking.roomNumber = room.roomNumber;
       booking.stayType = stayType;
-      booking.appliedRate = await snapshotRate(camp._id, stayType);
+
+      if (payload.rateId !== undefined || payload.stayType !== undefined) {
+        booking.appliedRate = await resolveAppliedRate({
+          campId: camp._id,
+          stayType,
+          fallbackRate: booking.appliedRate,
+          rateId: payload.rateId,
+        });
+      }
     }
 
     if (payload.arrivalDate !== undefined) booking.arrivalDate = payload.arrivalDate;
@@ -624,6 +648,7 @@ const deleteBooking = async (bookingId, actor) => {
 
   const snapshot = booking.toJSON();
   await Booking.deleteOne({ _id: booking._id });
+  await roomService.syncRoomStatus(snapshot.room);
 
   try {
     await auditService.record({
@@ -657,4 +682,5 @@ module.exports = {
   autoCheckOutDueBookings,
   generateInvoiceForBookingId,
   deleteBooking,
+  resolveAppliedRate,
 };

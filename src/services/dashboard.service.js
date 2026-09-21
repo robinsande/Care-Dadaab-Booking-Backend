@@ -7,21 +7,25 @@ const {
 } = require('../utils/constants');
 const { startOfDay, endOfDay } = require('../utils/dates');
 
-const getOccupiedRoomCount = async () => {
-  const [bookingRoomIds, roomStatusIds] = await Promise.all([
-    Booking.distinct('room', {
-      $or: [
-        { status: { $regex: /^checked in$/i }, checkedOutAt: null },
-        { checkedInAt: { $ne: null }, checkedOutAt: null },
-      ],
-    }),
-    Room.distinct('_id', { status: { $regex: /^occupied$/i } }),
-  ]);
+const DASHBOARD_CACHE_TTL_MS = 15 * 1000;
+let dashboardCache = { expiresAt: 0, value: null };
 
-  return new Set([...bookingRoomIds, ...roomStatusIds].map(String)).size;
+const getOccupiedRoomCount = async () => {
+  const occupiedRoomIds = await Booking.distinct('room', {
+    status: BOOKING_STATUS.CHECKED_IN,
+    checkedOutAt: null,
+    departureDate: { $gt: new Date() },
+  });
+
+  return new Set(occupiedRoomIds.map(String)).size;
 };
 
 const getDashboard = async () => {
+  const now = Date.now();
+  if (dashboardCache.value && now < dashboardCache.expiresAt) {
+    return dashboardCache.value;
+  }
+
   const todayStart = startOfDay();
   const todayEnd = endOfDay();
 
@@ -93,7 +97,7 @@ const getDashboard = async () => {
     0,
   );
 
-  return {
+  const result = {
     todaysArrivals,
     todaysDepartures,
     occupiedRooms,
@@ -113,6 +117,13 @@ const getDashboard = async () => {
       status: room.status,
     })),
   };
+
+  dashboardCache = {
+    expiresAt: Date.now() + DASHBOARD_CACHE_TTL_MS,
+    value: result,
+  };
+
+  return result;
 };
 
 module.exports = { getDashboard, getOccupiedRoomCount };

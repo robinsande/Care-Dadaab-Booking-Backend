@@ -139,6 +139,13 @@ const bookingSchema = new mongoose.Schema(
 bookingSchema.index({ 'guest.email': 1 });
 bookingSchema.index({ room: 1, status: 1 });
 bookingSchema.index({ camp: 1, status: 1 });
+bookingSchema.index({ status: 1, arrivalDate: 1, departureDate: 1 });
+bookingSchema.index({ room: 1, status: 1, arrivalDate: 1, departureDate: 1 });
+bookingSchema.index({ camp: 1, status: 1, arrivalDate: 1 });
+bookingSchema.index({ camp: 1, status: 1, departureDate: 1 });
+bookingSchema.index({ status: 1, checkedOutAt: 1, arrivalDate: 1 });
+bookingSchema.index({ status: 1, checkedOutAt: 1, departureDate: 1 });
+bookingSchema.index({ createdAt: -1 });
 
 bookingSchema.virtual('guestFullName').get(function guestFullName() {
   if (!this.guest) return '';
