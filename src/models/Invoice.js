@@ -28,6 +28,7 @@ const appliedRateSnapshotSchema = new mongoose.Schema(
 
 const paymentInstructionsSchema = new mongoose.Schema(
   {
+    mpesaTillNumber: { type: String, trim: true, default: '' },
     mpesaPaybillNumber: { type: String, trim: true, default: '' },
     bankName: { type: String, trim: true, default: '' },
     bankAccountName: { type: String, trim: true, default: '' },

@@ -152,7 +152,7 @@ const sendBookingConfirmationWithInvoice = (booking, invoice, recipients = booki
     ${detailRow('Invoice Number', invoice?.invoiceNumber || 'Pending')}
     ${invoice ? detailRow('Rate', `${invoice.appliedRate.currency} ${invoice.appliedRate.amount} per night`) : ''}
     ${invoice ? detailRow('Total Amount', `${invoice.appliedRate.currency} ${invoice.totalAmount}`) : ''}
-    ${payment.mpesaPaybillNumber ? detailRow('M-Pesa Paybill', payment.mpesaPaybillNumber) : ''}
+    ${payment.mpesaTillNumber || payment.mpesaPaybillNumber ? detailRow('M-Pesa Till', payment.mpesaTillNumber || payment.mpesaPaybillNumber) : ''}
     ${payment.bankName ? detailRow('Bank', payment.bankName) : ''}
     ${payment.bankAccountNumber ? detailRow('Account Number', payment.bankAccountNumber) : ''}
   `;
@@ -345,8 +345,8 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
     ${detailRow('Rate', `${invoice.appliedRate.currency} ${invoice.appliedRate.amount} per night`)}
     ${detailRow('Total Amount', `${invoice.appliedRate.currency} ${invoice.totalAmount}`)}
     <h4>Payment Instructions</h4>
-    ${payment.mpesaPaybillNumber ? detailRow('M-Pesa Paybill', payment.mpesaPaybillNumber) : ''}
-    ${payment.mpesaPaybillNumber ? detailRow('Paybill Account / Reference', invoice.bookingReference) : ''}
+    ${payment.mpesaTillNumber || payment.mpesaPaybillNumber ? detailRow('M-Pesa Till', payment.mpesaTillNumber || payment.mpesaPaybillNumber) : ''}
+    ${payment.mpesaTillNumber || payment.mpesaPaybillNumber ? detailRow('Till Account / Reference', invoice.bookingReference) : ''}
     ${payment.bankName ? detailRow('Bank', payment.bankName) : ''}
     ${payment.bankAccountName ? detailRow('Account Name', payment.bankAccountName) : ''}
     ${payment.bankAccountNumber ? detailRow('Account Number', payment.bankAccountNumber) : ''}

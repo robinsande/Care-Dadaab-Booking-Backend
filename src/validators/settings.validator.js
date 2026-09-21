@@ -8,6 +8,7 @@ const updateSettingsRules = [
     .withMessage('Support email must be a valid email address.')
     .normalizeEmail(),
   body('supportPhone').optional().trim(),
+  body('payment.mpesaTillNumber').optional().trim(),
   body('payment.mpesaPaybillNumber').optional().trim(),
   body('payment.bankName').optional().trim(),
   body('payment.bankAccountName').optional().trim(),

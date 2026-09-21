@@ -28,6 +28,7 @@ const buildInvoiceSnapshot = async (booking) => {
     .reduce((total, extension) => total + Number(extension.additionalCost || 0), 0);
   const totalAmount = booking.appliedRate.amount * numberOfNights + extensionCost;
   const paymentInstructions = {
+    mpesaTillNumber: settings.payment?.mpesaTillNumber || settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     bankName: settings.payment?.bankName || '',
     bankAccountName: settings.payment?.bankAccountName || '',

@@ -19,11 +19,18 @@ const updateSettings = async (data, actor) => {
 
   if (data.payment) {
     settings.payment = settings.payment || {};
-    ['mpesaPaybillNumber', 'bankName', 'bankAccountName', 'bankAccountNumber'].forEach(
+    ['mpesaTillNumber', 'mpesaPaybillNumber', 'bankName', 'bankAccountName', 'bankAccountNumber'].forEach(
       (field) => {
         if (data.payment[field] !== undefined) settings.payment[field] = data.payment[field];
       }
     );
+
+    if (data.payment.mpesaTillNumber !== undefined && !data.payment.mpesaPaybillNumber) {
+      settings.payment.mpesaPaybillNumber = data.payment.mpesaTillNumber;
+    }
+    if (data.payment.mpesaPaybillNumber !== undefined && !data.payment.mpesaTillNumber) {
+      settings.payment.mpesaTillNumber = data.payment.mpesaPaybillNumber;
+    }
   }
 
   if (data.notifications?.sendBookingConfirmation !== undefined) {
