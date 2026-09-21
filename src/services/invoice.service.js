@@ -30,9 +30,6 @@ const buildInvoiceSnapshot = async (booking) => {
   const paymentInstructions = {
     mpesaTillNumber: settings.payment?.mpesaTillNumber || settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
-    bankName: settings.payment?.bankName || '',
-    bankAccountName: settings.payment?.bankAccountName || '',
-    bankAccountNumber: settings.payment?.bankAccountNumber || '',
   };
   return {
     bookingReference: booking.bookingReference,
@@ -308,13 +305,10 @@ const generateInvoicePdfBuffer = (invoice) =>
 
     doc.fontSize(13).text('Payment Instructions', { underline: true });
     doc.fontSize(11);
-    if (payment.mpesaPaybillNumber) {
-      doc.text(`M-Pesa Paybill: ${payment.mpesaPaybillNumber}`);
-      doc.text(`Paybill Account / Reference: ${invoice.bookingReference}`);
+    if (payment.mpesaTillNumber || payment.mpesaPaybillNumber) {
+      doc.text(`M-Pesa Till: ${payment.mpesaTillNumber || payment.mpesaPaybillNumber}`);
+      doc.text(`Till Account / Reference: ${invoice.bookingReference}`);
     }
-    if (payment.bankName) doc.text(`Bank: ${payment.bankName}`);
-    if (payment.bankAccountName) doc.text(`Account Name: ${payment.bankAccountName}`);
-    if (payment.bankAccountNumber) doc.text(`Account Number: ${payment.bankAccountNumber}`);
 
     doc.end();
   });

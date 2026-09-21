@@ -153,8 +153,6 @@ const sendBookingConfirmationWithInvoice = (booking, invoice, recipients = booki
     ${invoice ? detailRow('Rate', `${invoice.appliedRate.currency} ${invoice.appliedRate.amount} per night`) : ''}
     ${invoice ? detailRow('Total Amount', `${invoice.appliedRate.currency} ${invoice.totalAmount}`) : ''}
     ${payment.mpesaTillNumber || payment.mpesaPaybillNumber ? detailRow('M-Pesa Till', payment.mpesaTillNumber || payment.mpesaPaybillNumber) : ''}
-    ${payment.bankName ? detailRow('Bank', payment.bankName) : ''}
-    ${payment.bankAccountNumber ? detailRow('Account Number', payment.bankAccountNumber) : ''}
   `;
   return sendEmail({
     to: recipients,
@@ -347,9 +345,6 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
     <h4>Payment Instructions</h4>
     ${payment.mpesaTillNumber || payment.mpesaPaybillNumber ? detailRow('M-Pesa Till', payment.mpesaTillNumber || payment.mpesaPaybillNumber) : ''}
     ${payment.mpesaTillNumber || payment.mpesaPaybillNumber ? detailRow('Till Account / Reference', invoice.bookingReference) : ''}
-    ${payment.bankName ? detailRow('Bank', payment.bankName) : ''}
-    ${payment.bankAccountName ? detailRow('Account Name', payment.bankAccountName) : ''}
-    ${payment.bankAccountNumber ? detailRow('Account Number', payment.bankAccountNumber) : ''}
     <p><em>Payments are not processed through this system. Please use the details above to make payment.</em></p>
   `;
 
