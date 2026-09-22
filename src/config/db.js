@@ -8,7 +8,7 @@ const MONGO_OPTIONS = {
   connectTimeoutMS: 20000,
   heartbeatFrequencyMS: 5000,
   family: 4,
-  autoIndex: true,
+  autoIndex: env.nodeEnv !== 'production',
   maxPoolSize: 20,
   minPoolSize: 3,
   maxIdleTimeMS: 60000,
