@@ -47,7 +47,7 @@ const createMfaQrCode = (secret, email) => {
  */
 const login = async ({ email, password }) => {
   const normalizedEmail = String(email || '').trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail }).select('+password +mfaSecret');
+  const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
   if (!user || !(await user.comparePassword(password))) {
     throw ApiError.unauthorized('Invalid email or password.');
@@ -57,34 +57,25 @@ const login = async ({ email, password }) => {
     throw ApiError.forbidden('Your account has been deactivated. Contact a Super Admin.');
   }
 
-  const requiresMfaSetup = !user.mfaEnabled || !user.mfaSecret;
+  const token = signToken(user);
+  const userJson = user.toJSON();
 
-  if (requiresMfaSetup) {
-    const secret = speakeasy.generateSecret({
-      name: `${env.mfaIssuer}:${user.email}`,
-      issuer: env.mfaIssuer,
-      length: 20,
-    });
-    if (!secret.otpauth_url) {
-      throw ApiError.internal('Unable to create the Microsoft Authenticator setup code.');
-    }
-    return {
-      mfaRequired: true,
-      mfaSetupRequired: true,
-      mfaToken: signMfaChallenge(user, 'setup', secret.base32),
-      qrCodeDataUrl: await createMfaQrCode(secret.base32, user.email),
-      manualKey: secret.base32,
-      user: user.toJSON(),
-    };
-  }
+  setImmediate(async () => {
+    try {
+      await User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } });
+    } catch (_) { /* ignore background save errors */ }
+    try {
+      await auditService.record({
+        action: AUDIT_ACTIONS.USER_LOGIN,
+        actorType: ACTOR_TYPE.USER,
+        actor: userJson,
+        actorLabel: userJson.email,
+        message: `${userJson.email} logged in.`,
+      });
+    } catch (_) { /* ignore background audit errors */ }
+  });
 
-  return {
-    mfaRequired: true,
-    mfaSetupRequired: false,
-    mfaToken: signMfaChallenge(user, 'verify'),
-    qrCodeDataUrl: await createMfaQrCode(user.mfaSecret, user.email),
-    user: user.toJSON(),
-  };
+  return { token, user: userJson };
 };
 
 const completeMfa = async ({ mfaToken, code }) => {
