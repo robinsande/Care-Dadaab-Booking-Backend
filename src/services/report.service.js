@@ -369,6 +369,7 @@ const calculateBookingRevenue = (booking) => {
 const reportMouRevenue = async (query) => {
   const filter = {
     mou: query.mouId || { $ne: null },
+    stayType: 'Long Stay',
     status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN, BOOKING_STATUS.CHECKED_OUT] },
     ...buildDateFilter(query, 'arrivalDate'),
   };
@@ -444,6 +445,54 @@ const reportMouRevenue = async (query) => {
   };
 };
 
+const reportShortStayRevenue = async (query) => {
+  const filter = {
+    mou: null,
+    stayType: 'Short Stay',
+    status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN, BOOKING_STATUS.CHECKED_OUT] },
+    ...buildDateFilter(query, 'arrivalDate'),
+  };
+  if (query.campId) filter.camp = query.campId;
+  if (query.bookingReference) filter.bookingReference = String(query.bookingReference).trim();
+  const bookings = await Booking.find(filter)
+    .sort({ arrivalDate: 1, createdAt: 1 })
+    .select('bookingReference guest campName blockName roomNumber arrivalDate departureDate durationNights appliedRate createdBy status remarks reasonForVisit')
+    .populate('createdBy', 'firstName lastName email')
+    .lean();
+  const rows = bookings.map((booking, index) => {
+    const revenue = calculateBookingRevenue(booking);
+    const person = `${booking.guest?.firstName || ''} ${booking.guest?.lastName || ''}`.trim();
+    return {
+      bookingReference: booking.bookingReference,
+      mouId: 'short-stay',
+      mou: 'Short Stay',
+      person,
+      room: `${booking.campName || ''} / ${booking.blockName || ''} / Room ${booking.roomNumber || ''}`,
+      checkIn: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
+      checkOut: new Date(booking.departureDate).toLocaleDateString('en-GB'),
+      days: booking.durationNights || 0,
+      rooms: 1,
+      rate: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / night`,
+      amountAccumulated: revenue,
+      bookedBy: `${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || '',
+      status: booking.status,
+      typeOfRoom: 'Short Stay',
+      remark: `Booking: ${booking.bookingReference} | Guest: ${person} | Accumulated: ${revenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })} | Booked by: ${`${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || ''}`,
+      tableNo: index + 1,
+    };
+  });
+  return {
+    title: 'Short Stay Revenue',
+    summary: {
+      totalRevenue: rows.reduce((sum, row) => sum + row.amountAccumulated, 0),
+      totalBookings: rows.length,
+      totalPeople: new Set(rows.map((row) => row.person)).size,
+      period: query.from || query.to ? `${query.from || 'Beginning'} to ${query.to || 'Today'}` : 'All selected dates',
+    },
+    rows,
+  };
+};
+
 const generators = {
   [REPORT_TYPES.BOOKINGS_BY_CAMP]: reportBookingsByCamp,
   [REPORT_TYPES.BOOKINGS_BY_DATE]: reportBookingsByDate,
@@ -458,6 +507,7 @@ const generators = {
   [REPORT_TYPES.MOU_MONTHLY]: reportMouMonthly,
   [REPORT_TYPES.MOU_ANNUAL]: reportMouAnnual,
   [REPORT_TYPES.MOU_REVENUE]: reportMouRevenue,
+  [REPORT_TYPES.SHORT_STAY_REVENUE]: reportShortStayRevenue,
 };
 
 const flattenRowsToCsv = (report) => {
@@ -521,6 +571,8 @@ const reportSummaryText = (summary = {}) => Object.entries(summary)
 
 const isMouRevenueReport = (report) => report.title === 'MOU Revenue by Occupant'
   || String(report.title || '').startsWith('MOU Revenue -');
+
+const isRevenueFormReport = (report) => isMouRevenueReport(report) || report.title === 'Short Stay Revenue';
 
 const RESERVATION_COLUMNS = [
   { key: 'tableNo', label: 'Serial No.', width: 11 },
@@ -624,6 +676,7 @@ const groupMouRevenueRows = (rows) => {
 
 const flattenMouRevenueToXlsxBuffer = async (report, logoPath) => {
   const workbook = new ExcelJS.Workbook();
+  const shortStay = report.title === 'Short Stay Revenue';
   const groups = groupMouRevenueRows(normalizeReportRows(report));
   const printableGroups = groups.length ? groups : [{ key: 'empty', name: 'No MOU selected', rows: [], total: 0 }];
   printableGroups.forEach((group, groupIndex) => {
@@ -637,7 +690,7 @@ const flattenMouRevenueToXlsxBuffer = async (report, logoPath) => {
     worksheet.getCell('A1').alignment = { horizontal: 'center' };
     worksheet.getRow(1).height = 32;
     worksheet.mergeCells(`A2:${endColumn}2`);
-    worksheet.getCell('A2').value = `Room Reservation Form - ${group.name}`;
+    worksheet.getCell('A2').value = shortStay ? `Short Stay Revenue Report - ${group.name}` : `Room Reservation Form - ${group.name}`;
     worksheet.getCell('A2').font = { bold: true, size: 13, color: { argb: 'FF173B63' } };
     worksheet.getCell('A2').alignment = { horizontal: 'center' };
     worksheet.getCell('A3').value = 'Recipient';
@@ -651,9 +704,9 @@ const flattenMouRevenueToXlsxBuffer = async (report, logoPath) => {
     worksheet.mergeCells(`G4:${endColumn}4`);
     worksheet.getCell('G4').value = group.total;
     worksheet.mergeCells(`A5:${endColumn}5`);
-    worksheet.getCell('A5').value = `Payment method: MOU agreement | Selected period: ${report.summary?.period || 'All selected dates'}`;
+    worksheet.getCell('A5').value = `${shortStay ? 'Payment method: nightly room rate' : 'Payment method: MOU agreement'} | Selected period: ${report.summary?.period || 'All selected dates'}`;
     worksheet.mergeCells(`A6:${endColumn}6`);
-    worksheet.getCell('A6').value = `Revenue Calculation: Guests ${new Set(group.rows.map((row) => row.person)).size} | Occupied rooms ${group.rows.length} | MOU subtotal ${group.total.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`;
+    worksheet.getCell('A6').value = `Revenue Calculation: Guests ${new Set(group.rows.map((row) => row.person)).size} | Occupied rooms ${group.rows.length} | ${shortStay ? 'Short stay subtotal' : 'MOU subtotal'} ${group.total.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`;
     ['A3', 'F3', 'A4', 'F4'].forEach((cell) => { worksheet.getCell(cell).font = { bold: true }; });
     const headerRow = worksheet.getRow(7);
     headerRow.values = MOU_REVENUE_COLUMNS.map((column) => column.label);
@@ -687,7 +740,7 @@ const flattenRowsToXlsxBuffer = async (report) => {
   const worksheet = workbook.addWorksheet('Report');
   const logoPath = path.resolve(__dirname, '../../assets/care-logo.png');
 
-  if (isMouRevenueReport(report)) {
+  if (isRevenueFormReport(report)) {
     return flattenMouRevenueToXlsxBuffer(report, logoPath);
   }
 
@@ -785,11 +838,12 @@ const flattenRowsToPdfBuffer = (report) =>
     const logoPath = path.resolve(__dirname, '../../assets/care-logo.png');
     const rows = normalizeReportRows(report);
 
-    if (isMouRevenueReport(report)) {
+    if (isRevenueFormReport(report)) {
       const groups = groupMouRevenueRows(rows);
       const printableGroups = groups.length ? groups : [{ name: 'No MOU selected', rows: [], total: 0 }];
       const columnWidths = [34, 74, 62, 62, 62, 40, 48, 60, 73];
       const labels = MOU_REVENUE_COLUMNS.map((column) => column.label);
+      const shortStay = report.title === 'Short Stay Revenue';
       const tableLeft = 40;
       const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
       const drawCell = (x, y, width, height, fill, text, color = '#111827', bold = false) => {
@@ -799,12 +853,12 @@ const flattenRowsToPdfBuffer = (report) =>
       const drawHeader = (group) => {
         doc.rect(tableLeft, 30, tableWidth, 42).fill('#173B63');
         doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(16).text('ROOM RESERVATION FORM 1', tableLeft, 43, { width: tableWidth, align: 'center' });
-        doc.fillColor('#173B63').font('Helvetica-Bold').fontSize(11).text(`Room Reservation Form - ${group.name}`, tableLeft, 78, { width: tableWidth, align: 'center' });
+        doc.fillColor('#173B63').font('Helvetica-Bold').fontSize(11).text(shortStay ? `Short Stay Revenue Report - ${group.name}` : `Room Reservation Form - ${group.name}`, tableLeft, 78, { width: tableWidth, align: 'center' });
         doc.fillColor('#111827').font('Helvetica').fontSize(7).text('Recipient: Dadaab Accommodation Team', tableLeft, 93);
         doc.text('Sender: CARE International', tableLeft + 290, 93);
-        doc.text(`Revenue Calculation: MOU total ${Number(group.total || 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`, tableLeft, 104);
+        doc.text(`Revenue Calculation: ${shortStay ? 'Short stay subtotal' : 'MOU total'} ${Number(group.total || 0).toLocaleString('en-KE', { maximumFractionDigits: 2 })}`, tableLeft, 104);
         doc.text(`Selected period: ${report.summary?.period || 'All selected dates'}`, tableLeft + 290, 104);
-        doc.text('Payment method: MOU agreement', tableLeft, 115);
+        doc.text(shortStay ? 'Payment method: nightly room rate' : 'Payment method: MOU agreement', tableLeft, 115);
       };
 
       printableGroups.forEach((group, groupIndex) => {

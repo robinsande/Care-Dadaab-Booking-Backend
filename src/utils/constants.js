@@ -113,6 +113,7 @@ const REPORT_TYPES = Object.freeze({
   MOU_MONTHLY: 'mou-monthly',
   MOU_ANNUAL: 'mou-annual',
   MOU_REVENUE: 'mou-revenue',
+  SHORT_STAY_REVENUE: 'short-stay-revenue',
 });
 
 const REPORT_TYPE_VALUES = Object.freeze(Object.values(REPORT_TYPES));
