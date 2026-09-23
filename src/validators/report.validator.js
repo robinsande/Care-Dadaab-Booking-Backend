@@ -13,6 +13,7 @@ const reportQueryRules = [
   query('status').optional().isIn(['active', 'expiring_soon', 'expired', 'draft', 'terminated', 'renewed']),
   query('counterpartyCategory').optional().isIn(MOU_CATEGORY_VALUES),
   query('mouId').optional().isMongoId(),
+  query('bookingReference').optional().trim().notEmpty(),
   query('format').optional().isIn(['json', 'csv', 'xlsx', 'excel', 'pdf']),
 ];
 
