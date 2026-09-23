@@ -28,6 +28,7 @@ const appliedRateSchema = new mongoose.Schema(
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, default: 'KES', trim: true, uppercase: true },
     stayType: { type: String, enum: STAY_TYPE_VALUES, required: true },
+    ratePeriod: { type: String, enum: ['per_night', 'per_month', 'per_year'], default: 'per_night' },
   },
   { _id: false }
 );
@@ -105,6 +106,14 @@ const bookingSchema = new mongoose.Schema(
       enum: STAY_TYPE_VALUES,
       required: true,
     },
+    mou: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Mou',
+      default: null,
+      index: true,
+    },
+    durationNights: { type: Number, min: 1, default: null },
+    durationMonths: { type: Number, min: 1, default: null },
 
     appliedRate: {
       type: appliedRateSchema,

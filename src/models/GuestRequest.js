@@ -13,6 +13,7 @@ const guestRequestSchema = new mongoose.Schema(
     arrivalDate: { type: Date, default: null },
     departureDate: { type: Date, default: null },
     stayType: { type: String, enum: ['Short Stay', 'Long Stay'], default: 'Short Stay' },
+    mou: { type: mongoose.Schema.Types.ObjectId, ref: 'Mou', default: null, index: true },
     reason: { type: String, trim: true, default: '' },
     requestedData: { type: mongoose.Schema.Types.Mixed, default: {} },
     resolutionNote: { type: String, trim: true, default: '' },

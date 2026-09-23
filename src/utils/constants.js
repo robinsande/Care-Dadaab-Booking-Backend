@@ -110,6 +110,8 @@ const REPORT_TYPES = Object.freeze({
   ARRIVALS: 'arrivals',
   DEPARTURES: 'departures',
   RESERVATION_LOG: 'reservation-log',
+  MOU_MONTHLY: 'mou-monthly',
+  MOU_ANNUAL: 'mou-annual',
 });
 
 const REPORT_TYPE_VALUES = Object.freeze(Object.values(REPORT_TYPES));

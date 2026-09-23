@@ -26,7 +26,13 @@ const buildInvoiceSnapshot = async (booking) => {
   const numberOfNights = calculateNights(booking.arrivalDate, booking.departureDate);
   const extensionCost = (booking.extensions || [])
     .reduce((total, extension) => total + Number(extension.additionalCost || 0), 0);
-  const totalAmount = booking.appliedRate.amount * numberOfNights + extensionCost;
+  const durationMonths = booking.stayType === 'Long Stay' && booking.appliedRate.ratePeriod === 'per_month'
+    ? (booking.durationMonths || Math.ceil(numberOfNights / 30))
+    : null;
+  const durationYears = booking.stayType === 'Long Stay' && booking.appliedRate.ratePeriod === 'per_year'
+    ? Math.ceil(numberOfNights / 365)
+    : null;
+  const totalAmount = booking.appliedRate.amount * (durationMonths || durationYears || numberOfNights) + extensionCost;
   const paymentInstructions = {
     mpesaTillNumber: settings.payment?.mpesaTillNumber || settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
@@ -47,12 +53,14 @@ const buildInvoiceSnapshot = async (booking) => {
     arrivalDate: booking.arrivalDate,
     departureDate: booking.departureDate,
     numberOfNights,
+    durationMonths,
     extensionCost,
     stayType: booking.stayType,
     appliedRate: {
       amount: booking.appliedRate.amount,
       currency: booking.appliedRate.currency,
       stayType: booking.appliedRate.stayType,
+      ratePeriod: booking.appliedRate.ratePeriod,
     },
     totalAmount,
     paymentInstructions,

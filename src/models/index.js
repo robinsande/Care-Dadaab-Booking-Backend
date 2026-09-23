@@ -15,4 +15,6 @@ module.exports = {
   ReminderLog: require('./ReminderLog'),
   Guest: require('./Guest'),
   GuestRequest: require('./GuestRequest'),
+  Mou: require('./Mou'),
+  MouPayment: require('./MouPayment'),
 };

@@ -1,4 +1,4 @@
-const { GuestRequest, Booking, User, Invoice } = require('../models');
+const { GuestRequest, Booking, Guest, User, Invoice } = require('../models');
 const ApiError = require('../utils/ApiError');
 const campService = require('./camp.service');
 const bookingService = require('./booking.service');
@@ -7,6 +7,7 @@ const invoiceService = require('./invoice.service');
 const settingsService = require('./settings.service');
 const env = require('../config/env');
 const crypto = require('crypto');
+const mouService = require('./mou.service');
 
 const REQUEST_TYPES = ['booking', 'adjustment', 'early_checkout', 'extension'];
 
@@ -40,19 +41,29 @@ const assertDates = (arrivalDate, departureDate) => {
 };
 
 const createBookingRequest = async (guest, payload) => {
-  if (!payload.campId || !payload.rateId || !payload.arrivalDate || !payload.departureDate) {
-    throw ApiError.badRequest('Camp, room rate, arrival date and departure date are required.');
+  if (!payload.campId || !payload.arrivalDate || !payload.departureDate) {
+    throw ApiError.badRequest('Camp, arrival date and departure date are required.');
   }
   const { arrival, departure } = assertDates(payload.arrivalDate, payload.departureDate);
   const camp = await campService.getCampById(payload.campId);
   if (!camp.isActive) throw ApiError.conflict('The selected camp is not active.');
+  const nights = Math.ceil((departure - arrival) / (24 * 60 * 60 * 1000));
+  const stayType = payload.stayType || 'Short Stay';
+  if (stayType === 'Short Stay' && nights > 21) {
+    throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this request to Long Stay with an active MOU.');
+  }
+  if (stayType === 'Long Stay' && !payload.mouId) {
+    throw ApiError.badRequest('An active MOU is required for Long Stay requests.');
+  }
+  const mou = stayType === 'Long Stay' ? await mouService.getActiveById(payload.mouId) : null;
   const request = await GuestRequest.create({
     guest: guest._id,
     type: 'booking',
     camp: camp._id,
     arrivalDate: arrival,
     departureDate: departure,
-    stayType: payload.stayType || 'Short Stay',
+    stayType,
+    mou: mou?._id || null,
     reason: payload.reason || '',
     requestedData: {
       firstName: payload.firstName || guest.firstName,
@@ -67,7 +78,7 @@ const createBookingRequest = async (guest, payload) => {
       reasonForVisit: payload.reasonForVisit || payload.reason || '',
       remarks: payload.remarks || '',
       driverPickup: Boolean(payload.driverPickup),
-      rateId: payload.rateId || '',
+      rateId: stayType === 'Short Stay' ? (payload.rateId || '') : '',
     },
   });
   await notify(request, guest);
@@ -211,6 +222,7 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
       blockId,
       roomId,
       stayType: request.stayType,
+      mouId: request.mou,
       reasonForVisit: request.requestedData?.reasonForVisit || request.reason,
       remarks: request.requestedData?.remarks,
       driverPickup: request.requestedData?.driverPickup,

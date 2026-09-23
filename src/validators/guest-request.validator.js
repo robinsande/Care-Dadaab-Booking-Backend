@@ -10,6 +10,7 @@ const bookingRequestRules = [
   body('departureDate').optional().isISO8601(),
   body('newDepartureDate').optional().isISO8601(),
   body('stayType').optional().isIn(['Short Stay', 'Long Stay']),
+  body('mouId').optional().isMongoId(),
   body('firstName').optional().trim(),
   body('lastName').optional().trim(),
   body('phone').optional().trim(),

@@ -54,4 +54,4 @@ const createPublic = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { listCamps, listCampRates, create, createForBooking, listMine, listBookings, getInvoice, listStaff, resolve };
+module.exports = { listCamps, listCampRates, create, createPublic, createForBooking, listMine, listBookings, getInvoice, listStaff, resolve };

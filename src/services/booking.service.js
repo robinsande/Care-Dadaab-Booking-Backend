@@ -12,6 +12,7 @@ const auditService = require('./audit.service');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 const { calculateNights } = require('../utils/dates');
+const mouService = require('./mou.service');
 const {
   BOOKING_STATUS,
   ACTOR_TYPE,
@@ -132,7 +133,29 @@ const createBooking = async (payload, actor) => {
     departureDate: payload.departureDate,
   });
 
-  const appliedRate = await snapshotRate(camp._id, payload.stayType, payload.rateId);
+  const durationNights = calculateNights(payload.arrivalDate, payload.departureDate);
+  if (payload.stayType === 'Short Stay' && durationNights > 21) {
+    throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay with an active MOU.');
+  }
+  let mou = null;
+  let appliedRate;
+  if (payload.stayType === 'Long Stay') {
+    if (durationNights <= 21) throw ApiError.badRequest('Long Stay must be more than 21 nights.');
+    if (!payload.mouId) throw ApiError.badRequest('An active MOU is required for Long Stay bookings.');
+    mou = await mouService.getActiveById(payload.mouId);
+    appliedRate = {
+      rateId: null,
+      amount: mou.rateAmount,
+      currency: mou.rateCurrency,
+      stayType: payload.stayType,
+      ratePeriod: mou.ratePeriod,
+    };
+    if (new Date(payload.arrivalDate) < mou.startDate || new Date(payload.departureDate) > mou.endDate) {
+      throw ApiError.badRequest('The booking dates must fall within the active MOU term.');
+    }
+  } else {
+    appliedRate = await snapshotRate(camp._id, payload.stayType, payload.rateId);
+  }
   const bookingReference = await referenceService.generateBookingReference();
 
   const booking = await Booking.create({
@@ -151,6 +174,9 @@ const createBooking = async (payload, actor) => {
     room: room._id,
     roomNumber: room.roomNumber,
     stayType: payload.stayType,
+    mou: mou?._id || null,
+    durationNights,
+    durationMonths: payload.stayType === 'Long Stay' ? Math.ceil(durationNights / 30) : null,
     appliedRate,
     createdBy: actor._id,
     guestAccount: payload.guestAccountId || null,
@@ -360,6 +386,7 @@ const updateBooking = async (bookingId, payload, actor) => {
       payload.blockId !== undefined ||
       payload.roomId !== undefined;
     const stayTypeChanging = payload.stayType !== undefined;
+    const mouChanging = payload.mouId !== undefined;
 
     const arrivalDate = payload.arrivalDate || booking.arrivalDate;
     const departureDate = payload.departureDate || booking.departureDate;
@@ -368,11 +395,16 @@ const updateBooking = async (bookingId, payload, actor) => {
       throw ApiError.badRequest('Departure date must be after the arrival date.');
     }
 
-    if (locationChanging || datesChanging || stayTypeChanging) {
+    if (locationChanging || datesChanging || stayTypeChanging || mouChanging) {
       const campId = payload.campId || booking.camp;
       const blockId = payload.blockId || booking.block;
       const roomId = payload.roomId || booking.room;
       const stayType = payload.stayType || booking.stayType;
+      const durationNights = calculateNights(arrivalDate, departureDate);
+
+      if (stayType === 'Short Stay' && durationNights > 21) {
+        throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay with an active MOU.');
+      }
 
       const { camp, block, room } = await resolveLocation({ campId, blockId, roomId });
 
@@ -392,8 +424,22 @@ const updateBooking = async (bookingId, payload, actor) => {
       booking.room = room._id;
       booking.roomNumber = room.roomNumber;
       booking.stayType = stayType;
+      if (stayType === 'Long Stay') {
+        if (durationNights <= 21) throw ApiError.badRequest('Long Stay must be more than 21 nights.');
+        const mou = await mouService.getActiveById(payload.mouId || booking.mou);
+        booking.mou = mou._id;
+        booking.durationMonths = Math.ceil(durationNights / 30);
+        if (new Date(arrivalDate) < mou.startDate || new Date(departureDate) > mou.endDate) {
+          throw ApiError.badRequest('The booking dates must fall within the active MOU term.');
+        }
+        booking.appliedRate = { rateId: null, amount: mou.rateAmount, currency: mou.rateCurrency, stayType, ratePeriod: mou.ratePeriod };
+      } else {
+        booking.mou = null;
+        booking.durationMonths = null;
+        booking.durationNights = durationNights;
+      }
 
-      if (payload.rateId !== undefined || payload.stayType !== undefined) {
+      if (stayType !== 'Long Stay' && (payload.rateId !== undefined || payload.stayType !== undefined)) {
         booking.appliedRate = await resolveAppliedRate({
           campId: camp._id,
           stayType,
@@ -405,6 +451,7 @@ const updateBooking = async (bookingId, payload, actor) => {
 
     if (payload.arrivalDate !== undefined) booking.arrivalDate = payload.arrivalDate;
     if (payload.departureDate !== undefined) booking.departureDate = payload.departureDate;
+    booking.durationNights = calculateNights(booking.arrivalDate, booking.departureDate);
   } else {
     throw ApiError.badRequest(`Bookings in "${booking.status}" cannot be edited.`);
   }
@@ -514,7 +561,9 @@ const extendStay = async (bookingId, { newDepartureDate, reason, additionalCost 
   const trimmedReason = String(reason || '').trim();
   if (!trimmedReason) throw ApiError.badRequest('An extension reason is required.');
   const extensionNights = calculateNights(booking.departureDate, newDeparture);
-  const cost = booking.appliedRate.amount * extensionNights;
+  const cost = booking.stayType === 'Long Stay'
+    ? booking.appliedRate.amount * Math.ceil(extensionNights / 30)
+    : booking.appliedRate.amount * extensionNights;
 
   await roomService.assertRoomAssignable({
     roomId: booking.room,
@@ -534,6 +583,10 @@ const extendStay = async (bookingId, { newDepartureDate, reason, additionalCost 
     extendedBy: actor._id,
   };
   booking.departureDate = newDeparture;
+  booking.durationNights = calculateNights(booking.arrivalDate, newDeparture);
+  if (booking.stayType === 'Long Stay') {
+    booking.durationMonths = Math.ceil(booking.durationNights / 30);
+  }
   booking.extensions = booking.extensions || [];
   booking.extensions.push(extension);
   await booking.save();

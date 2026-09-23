@@ -7,6 +7,9 @@ const reportQueryRules = [
   query('campId').optional().isMongoId(),
   query('stayType').optional().isIn(STAY_TYPE_VALUES),
   query('date').optional().isISO8601(),
+  query('period').optional().matches(/^\d{4}(-\d{2})?$/),
+  query('year').optional().isInt({ min: 2000, max: 2100 }),
+  query('status').optional().isIn(['active', 'expiring_soon', 'expired', 'draft', 'terminated', 'renewed']),
   query('format').optional().isIn(['json', 'csv', 'xlsx', 'excel', 'pdf']),
 ];
 

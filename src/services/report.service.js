@@ -1,4 +1,4 @@
-const { Booking, Room, Invoice, Camp } = require('../models');
+const { Booking, Room, Invoice, Camp, Mou, MouPayment } = require('../models');
 const ApiError = require('../utils/ApiError');
 const XLSX = require('xlsx');
 const ExcelJS = require('exceljs');
@@ -269,6 +269,69 @@ const reportReservationLog = async (query) => {
   };
 };
 
+const mouStatusFilter = (query) => query.status ? { status: query.status } : { status: { $in: ['active', 'expiring_soon', 'expired'] } };
+
+const reportMouMonthly = async (query) => {
+  const mous = await Mou.find({ ...mouStatusFilter(query), mouType: 'individual' }).lean();
+  const mouIds = mous.map((mou) => mou._id);
+  const paymentFilter = { mou: { $in: mouIds } };
+  if (query.period) paymentFilter.periodLabel = query.period;
+  const payments = await MouPayment.find(paymentFilter).sort({ dueDate: 1 }).lean();
+  const byId = new Map(mous.map((mou) => [String(mou._id), mou]));
+  const rows = payments.map((payment) => {
+    const mou = byId.get(String(payment.mou));
+    const amountPaid = payment.amountPaid || 0;
+    return {
+      mouId: mou?._id,
+      staffName: mou?.partyName || '',
+      counterparty: mou?.counterpartyCategory || '',
+      startDate: mou?.startDate,
+      endDate: mou?.endDate,
+      monthlyRateKes: mou?.rateAmount || 0,
+      month: payment.periodLabel,
+      amountDue: payment.amountDue,
+      amountPaid,
+      paymentStatus: payment.status,
+      outstandingBalance: Math.max(payment.amountDue - amountPaid, 0),
+    };
+  });
+  return {
+    title: 'Monthly-paying MOUs',
+    summary: { totalDue: rows.reduce((sum, row) => sum + row.amountDue, 0), totalCollected: rows.reduce((sum, row) => sum + row.amountPaid, 0) },
+    rows,
+  };
+};
+
+const reportMouAnnual = async (query) => {
+  const mous = await Mou.find({ ...mouStatusFilter(query), mouType: 'partner' }).lean();
+  const mouIds = mous.map((mou) => mou._id);
+  const paymentFilter = { mou: { $in: mouIds } };
+  if (query.year) paymentFilter.periodLabel = String(query.year);
+  const payments = await MouPayment.find(paymentFilter).lean();
+  const paymentByMou = new Map(payments.map((payment) => [String(payment.mou), payment]));
+  const renewalCutoff = new Date();
+  renewalCutoff.setDate(renewalCutoff.getDate() + 60);
+  return {
+    title: 'Annual-paying MOUs',
+    rows: mous.map((mou) => {
+      const payment = paymentByMou.get(String(mou._id));
+      const amountPaid = payment?.amountPaid || 0;
+      return {
+        mouId: mou._id,
+        partnerName: mou.partyName,
+        startDate: mou.startDate,
+        endDate: mou.endDate,
+        annualRateKes: mou.rateAmount,
+        paymentStatus: payment?.status || 'pending',
+        amountPaid,
+        outstandingBalance: Math.max((payment?.amountDue || mou.rateAmount) - amountPaid, 0),
+        renewalDueDate: mou.endDate,
+        renewalDueWithin60Days: new Date(mou.endDate) <= renewalCutoff,
+      };
+    }),
+  };
+};
+
 const generators = {
   [REPORT_TYPES.BOOKINGS_BY_CAMP]: reportBookingsByCamp,
   [REPORT_TYPES.BOOKINGS_BY_DATE]: reportBookingsByDate,
@@ -280,6 +343,8 @@ const generators = {
   [REPORT_TYPES.ARRIVALS]: reportArrivals,
   [REPORT_TYPES.DEPARTURES]: reportDepartures,
   [REPORT_TYPES.RESERVATION_LOG]: reportReservationLog,
+  [REPORT_TYPES.MOU_MONTHLY]: reportMouMonthly,
+  [REPORT_TYPES.MOU_ANNUAL]: reportMouAnnual,
 };
 
 const flattenRowsToCsv = (report) => {

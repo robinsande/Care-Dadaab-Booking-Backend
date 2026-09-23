@@ -22,6 +22,7 @@ const appliedRateSnapshotSchema = new mongoose.Schema(
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, default: 'KES', trim: true, uppercase: true },
     stayType: { type: String, enum: STAY_TYPE_VALUES, required: true },
+    ratePeriod: { type: String, enum: ['per_night', 'per_month', 'per_year'], default: 'per_night' },
   },
   { _id: false }
 );
@@ -73,6 +74,7 @@ const invoiceSchema = new mongoose.Schema(
     arrivalDate: { type: Date, required: true },
     departureDate: { type: Date, required: true },
     numberOfNights: { type: Number, required: true, min: 0 },
+    durationMonths: { type: Number, min: 1, default: null },
 
     stayType: { type: String, enum: STAY_TYPE_VALUES, required: true },
     appliedRate: { type: appliedRateSnapshotSchema, required: true },

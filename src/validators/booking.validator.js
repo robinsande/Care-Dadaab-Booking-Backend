@@ -62,16 +62,11 @@ const dateRules = [
         throw new Error('Departure date must be after the arrival date.');
       }
       if (req.body.stayType === 'Long Stay') {
-        const minimum = new Date(arrival);
-        minimum.setMonth(minimum.getMonth() + 1);
-        const maximum = new Date(arrival);
-        maximum.setMonth(maximum.getMonth() + 12);
-        if (departure <= minimum) {
-          throw new Error('Long Stay must be more than one month.');
-        }
-        if (departure > maximum) {
-          throw new Error('Long Stay cannot exceed 12 months.');
-        }
+        const nights = Math.ceil((departure - arrival) / (24 * 60 * 60 * 1000));
+        if (nights <= 21) throw new Error('Long Stay must be more than 21 nights.');
+      } else {
+        const nights = Math.ceil((departure - arrival) / (24 * 60 * 60 * 1000));
+        if (nights > 21) throw new Error('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay with an active MOU.');
       }
       return true;
     }),
@@ -86,6 +81,7 @@ const createBookingRules = [
   body('stayType')
     .isIn(STAY_TYPE_VALUES)
     .withMessage(`Stay type must be one of: ${STAY_TYPE_VALUES.join(', ')}.`),
+  body('mouId').optional().isMongoId().withMessage('A valid MOU id is required.'),
 ];
 
 const updateBookingRules = [
@@ -117,6 +113,7 @@ const updateBookingRules = [
   body('blockId').optional().isMongoId(),
   body('roomId').optional().isMongoId(),
   body('stayType').optional().isIn(STAY_TYPE_VALUES),
+  body('mouId').optional().isMongoId(),
 ];
 
 const listBookingsRules = [
