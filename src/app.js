@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -19,6 +20,7 @@ const app = express();
 
 // Security & hardening.
 app.use(helmet());
+app.use(compression());
 
 const corsOptions =
   env.corsOrigin === '*'
