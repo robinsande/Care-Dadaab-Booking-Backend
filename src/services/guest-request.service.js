@@ -8,6 +8,7 @@ const settingsService = require('./settings.service');
 const env = require('../config/env');
 const crypto = require('crypto');
 const mouService = require('./mou.service');
+const rateService = require('./rate.service');
 
 const REQUEST_TYPES = ['booking', 'adjustment', 'early_checkout', 'extension'];
 
@@ -55,7 +56,18 @@ const createBookingRequest = async (guest, payload) => {
   if (stayType === 'Long Stay' && !payload.mouId) {
     throw ApiError.badRequest('An active MOU is required for Long Stay requests.');
   }
-  const mou = stayType === 'Long Stay' ? await mouService.getActiveById(payload.mouId) : null;
+  if (stayType === 'Long Stay' && nights <= 21) {
+    throw ApiError.badRequest('Long Stay must be more than 21 nights.');
+  }
+  if (stayType === 'Short Stay' && !payload.rateId) {
+    throw ApiError.badRequest('Select a current short-stay room rate.');
+  }
+  const mou = stayType === 'Long Stay'
+    ? await mouService.getActiveForBooking(payload.mouId, payload)
+    : null;
+  if (stayType === 'Short Stay') {
+    await rateService.getCurrentRateById(payload.campId, payload.rateId, stayType);
+  }
   const request = await GuestRequest.create({
     guest: guest._id,
     type: 'booking',

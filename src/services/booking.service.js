@@ -147,7 +147,7 @@ const createBooking = async (payload, actor) => {
   if (payload.stayType === 'Long Stay') {
     if (durationNights <= 21) throw ApiError.badRequest('Long Stay must be more than 21 nights.');
     if (!payload.mouId) throw ApiError.badRequest('An active MOU is required for Long Stay bookings.');
-    mou = await mouService.getActiveById(payload.mouId);
+    mou = await mouService.getActiveForBooking(payload.mouId, payload);
     appliedRate = {
       rateId: null,
       amount: mou.rateAmount,

@@ -1,5 +1,6 @@
 const { Mou, MouPayment } = require('../models');
 const ApiError = require('../utils/ApiError');
+const { getMouCategoryForContractType } = require('../utils/mou');
 
 const INDIVIDUAL_MONTHLY_RATE = 6000;
 const EXPIRING_SOON_DAYS = 60;
@@ -79,10 +80,23 @@ const getActiveById = async (id) => {
   return mou;
 };
 
+const getActiveForBooking = async (id, { contractType } = {}) => {
+  const mou = await getActiveById(id);
+  const requiredCategory = getMouCategoryForContractType(contractType);
+  if (!requiredCategory) {
+    throw ApiError.badRequest('Long Stay bookings require an eligible MOU contract type: CARE Staff, Implementing Partner, Partner Organisation, or Government.');
+  }
+  if (mou.counterpartyCategory !== requiredCategory) {
+    throw ApiError.badRequest(`The selected MOU is for ${mou.counterpartyCategory}, not ${requiredCategory}.`);
+  }
+  return mou;
+};
+
 const list = async (query = {}) => {
   const filter = {};
   if (query.mouType) filter.mouType = query.mouType;
   if (query.status) filter.status = query.status;
+  if (query.counterpartyCategory) filter.counterpartyCategory = query.counterpartyCategory;
   if (query.search) filter.$text = { $search: query.search };
   const mous = await Mou.find(filter).sort({ endDate: 1, partyName: 1 });
   for (const mou of mous) await refreshStatus(mou);
@@ -110,6 +124,7 @@ module.exports = {
   INDIVIDUAL_MONTHLY_RATE,
   create,
   getActiveById,
+  getActiveForBooking,
   list,
   listPayments,
   updatePayment,

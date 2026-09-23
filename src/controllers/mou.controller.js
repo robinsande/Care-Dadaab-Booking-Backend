@@ -7,7 +7,14 @@ const list = asyncHandler(async (req, res) => {
 });
 
 const publicList = asyncHandler(async (req, res) => {
-  sendSuccess(res, { message: 'Active MOUs retrieved.', data: await mouService.list({ status: 'active', search: req.query.search }) });
+  sendSuccess(res, {
+    message: 'Active MOUs retrieved.',
+    data: await mouService.list({
+      status: 'active',
+      search: req.query.search,
+      counterpartyCategory: req.query.counterpartyCategory,
+    }),
+  });
 });
 
 const create = asyncHandler(async (req, res) => {

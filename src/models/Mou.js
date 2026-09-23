@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
-
+const { MOU_CATEGORY_VALUES } = require('../utils/mou');
 const MOU_TYPES = ['partner', 'individual'];
-const CATEGORIES = ['implementing_partner', 'government', 'municipality', 'staff'];
 const STATUSES = ['draft', 'active', 'expiring_soon', 'expired', 'terminated', 'renewed'];
 
 const mouSchema = new mongoose.Schema(
@@ -9,7 +8,7 @@ const mouSchema = new mongoose.Schema(
     mouType: { type: String, enum: MOU_TYPES, required: true, index: true },
     partyName: { type: String, required: true, trim: true },
     linkedPartnerOrgId: { type: mongoose.Schema.Types.ObjectId, ref: 'PartnerOrganization', default: null },
-    counterpartyCategory: { type: String, enum: CATEGORIES, required: true },
+    counterpartyCategory: { type: String, enum: MOU_CATEGORY_VALUES, required: true },
     startDate: { type: Date, required: true, index: true },
     endDate: { type: Date, required: true, index: true },
     paymentFrequency: { type: String, enum: ['annual', 'monthly'], required: true },

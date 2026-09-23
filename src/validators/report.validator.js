@@ -1,5 +1,6 @@
 const { query } = require('express-validator');
 const { REPORT_TYPE_VALUES, STAY_TYPE_VALUES } = require('../utils/constants');
+const { MOU_CATEGORY_VALUES } = require('../utils/mou');
 
 const reportQueryRules = [
   query('from').optional().isISO8601(),
@@ -10,6 +11,7 @@ const reportQueryRules = [
   query('period').optional().matches(/^\d{4}(-\d{2})?$/),
   query('year').optional().isInt({ min: 2000, max: 2100 }),
   query('status').optional().isIn(['active', 'expiring_soon', 'expired', 'draft', 'terminated', 'renewed']),
+  query('counterpartyCategory').optional().isIn(MOU_CATEGORY_VALUES),
   query('format').optional().isIn(['json', 'csv', 'xlsx', 'excel', 'pdf']),
 ];
 
