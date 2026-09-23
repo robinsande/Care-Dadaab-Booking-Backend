@@ -18,8 +18,15 @@ const logger = require('../utils/logger');
 const env = require('../config/env');
 
 const isNonBillableCareStaff = (guest = {}) =>
-  /^care\s+kenya$/i.test(String(guest.organisation || '').trim())
-  && /^(?:care\s*)?staff$/i.test(String(guest.contractType || '').trim());
+  /^(?:care\s*)?staff$/i.test(String(guest.contractType || '').trim())
+  && /^care\s+kenya$/i.test(String(guest.organisation || '').trim());
+
+const isIntercompanyCareStaffLongStay = (bookingOrGuest, stayType = '') => {
+  const guest = bookingOrGuest?.guest || bookingOrGuest || {};
+  const bookingStayType = bookingOrGuest?.stayType || stayType;
+  return bookingStayType === 'Long Stay'
+    && /^(?:care\s*)?staff$/i.test(String(guest.contractType || '').trim());
+};
 
 const buildInvoiceSnapshot = async (booking) => {
   const settings = await settingsService.getSettings();
@@ -69,7 +76,7 @@ const buildInvoiceSnapshot = async (booking) => {
 };
 
 const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', notify = true } = {}) => {
-  if (isNonBillableCareStaff(booking.guest)) return null;
+  if (isNonBillableCareStaff(booking.guest) || isIntercompanyCareStaffLongStay(booking)) return null;
 
   const snapshot = await buildInvoiceSnapshot(booking);
 
@@ -210,7 +217,7 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
 
   const invoice = await Invoice.findById(id);
   if (!invoice) throw ApiError.notFound('Invoice not found.');
-  if (isNonBillableCareStaff(invoice.guest)) {
+  if (isNonBillableCareStaff(invoice.guest) || isIntercompanyCareStaffLongStay(invoice)) {
     throw ApiError.badRequest('CARE Kenya staff accommodation is billed through the organisation.');
   }
   const paymentCompleted =
@@ -323,6 +330,7 @@ const generateInvoicePdfBuffer = (invoice) =>
 
 module.exports = {
   isNonBillableCareStaff,
+  isIntercompanyCareStaffLongStay,
   generateInvoiceForBooking,
   listInvoices,
   getInvoiceById,

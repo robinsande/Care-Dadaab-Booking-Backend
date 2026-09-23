@@ -161,6 +161,24 @@ const sendBookingConfirmationWithInvoice = (booking, invoice, recipients = booki
   });
 };
 
+const sendIntercompanyBookingConfirmation = (booking, recipients = booking.guest.email) => {
+  const body = `
+    <p>Dear ${booking.guest.firstName},</p>
+    <p>Your long-stay accommodation booking has been confirmed. No guest invoice is required.</p>
+    ${detailRow('Booking Reference', booking.bookingReference)}
+    ${detailRow('Camp', booking.campName)}
+    ${detailRow('Room', `Block ${booking.blockName} Room ${booking.roomNumber}`)}
+    ${detailRow('Arrival Date', formatDate(booking.arrivalDate))}
+    ${detailRow('Departure Date', formatDate(booking.departureDate))}
+    ${detailRow('Billing', 'CARE Intercompany Building')}
+  `;
+  return sendEmail({
+    to: recipients,
+    subject: `Booking Confirmed - ${booking.bookingReference}`,
+    html: layout('Booking Confirmation', body),
+  });
+};
+
 const sendBookingUpdated = (booking, recipients = booking.guest.email) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
@@ -189,7 +207,9 @@ const sendBookingExtended = (booking, extension, recipients = [booking.guest.ema
     ${detailRow('New Departure Date', formatDate(booking.departureDate))}
     ${detailRow('Additional Cost', `${currency} ${Number(extension.additionalCost).toLocaleString('en-KE', { minimumFractionDigits: 2 })}`)}
     ${detailRow('Reason', extension.reason)}
-    <p>Your updated invoice reflects the extended stay and additional cost.</p>
+    ${booking.billingType === 'intercompany'
+      ? '<p>This booking is billed through CARE Intercompany Building. No guest invoice is required.</p>'
+      : '<p>Your updated invoice reflects the extended stay and additional cost.</p>'}
   `;
   return sendEmail({
     to: recipients,
@@ -432,6 +452,7 @@ module.exports = {
   sendEmail,
   sendBookingCreated,
   sendBookingConfirmationWithInvoice,
+  sendIntercompanyBookingConfirmation,
   sendBookingUpdated,
   sendBookingExtended,
   sendBookingCancelled,

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { resolveAppliedRate } = require('../src/services/booking.service');
+const { isIntercompanyCareStaffLongStay } = require('../src/services/invoice.service');
 const { buildPaymentRows, INDIVIDUAL_MONTHLY_RATE } = require('../src/services/mou.service');
 
 const overlaps = (arrival, departure, existingArrival, existingDeparture) =>
@@ -62,4 +63,10 @@ test('short stay boundary is 21 nights', () => {
   const nights = (arrival, departure) => Math.ceil((new Date(departure) - new Date(arrival)) / 86400000);
   assert.equal(nights('2026-10-01', '2026-10-22'), 21);
   assert.equal(nights('2026-10-01', '2026-10-23') > 21, true);
+});
+
+test('CARE Staff long stays use intercompany billing', () => {
+  assert.equal(isIntercompanyCareStaffLongStay({ stayType: 'Long Stay', guest: { contractType: 'CARE Staff' } }), true);
+  assert.equal(isIntercompanyCareStaffLongStay({ stayType: 'Short Stay', guest: { contractType: 'CARE Staff' } }), false);
+  assert.equal(isIntercompanyCareStaffLongStay({ stayType: 'Long Stay', guest: { contractType: 'Consultant' } }), false);
 });

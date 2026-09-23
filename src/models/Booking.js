@@ -54,6 +54,8 @@ const bookingSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    billingType: { type: String, enum: ['guest', 'intercompany'], default: 'guest', index: true },
+    billingAccount: { type: String, trim: true, default: '' },
 
     reasonForVisit: { type: String, trim: true },
     remarks: { type: String, trim: true },
