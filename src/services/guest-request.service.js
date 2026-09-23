@@ -6,6 +6,7 @@ const emailService = require('./email.service');
 const invoiceService = require('./invoice.service');
 const settingsService = require('./settings.service');
 const env = require('../config/env');
+const crypto = require('crypto');
 
 const REQUEST_TYPES = ['booking', 'adjustment', 'early_checkout', 'extension'];
 
@@ -71,6 +72,29 @@ const createBookingRequest = async (guest, payload) => {
   });
   await notify(request, guest);
   return request;
+};
+
+const createPublicBookingRequest = async (payload) => {
+  const email = String(payload.email || '').trim().toLowerCase();
+  let guest = await Guest.findOne({ email });
+  if (!guest) {
+    guest = await Guest.create({
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      email,
+      phone: payload.phone || '',
+      password: crypto.randomBytes(32).toString('hex'),
+      organisation: payload.organisation || '',
+      gender: payload.gender || '',
+      contractType: payload.contractType || '',
+      departureCountry: payload.departureCountry || '',
+      kenyaOffice: payload.kenyaOffice || '',
+      internationalCountry: payload.internationalCountry || '',
+    });
+  } else if (!guest.isActive) {
+    throw ApiError.forbidden('This guest contact is not available.');
+  }
+  return createBookingRequest(guest, payload);
 };
 
 const getGuestBooking = async (guest, bookingId) => {
@@ -220,6 +244,7 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
 
 module.exports = {
   createBookingRequestForGuest,
+  createPublicBookingRequest,
   listForGuest,
   listBookingsForGuest,
   getInvoiceForGuestBooking,

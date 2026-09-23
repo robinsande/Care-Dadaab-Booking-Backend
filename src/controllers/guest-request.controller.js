@@ -46,5 +46,12 @@ const resolve = asyncHandler(async (req, res) => {
     data: await service.resolve(req.params.id, req.user, req.body),
   });
 });
+const createPublic = asyncHandler(async (req, res) => {
+  sendSuccess(res, {
+    statusCode: 201,
+    message: 'Guest request submitted.',
+    data: await service.createPublicBookingRequest(req.body),
+  });
+});
 
 module.exports = { listCamps, listCampRates, create, createForBooking, listMine, listBookings, getInvoice, listStaff, resolve };
