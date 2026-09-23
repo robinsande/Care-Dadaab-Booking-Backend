@@ -394,10 +394,21 @@ const reportMouRevenue = async (query) => {
       checkIn: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
       checkOut: new Date(booking.departureDate).toLocaleDateString('en-GB'),
       days: booking.durationNights || 0,
+      rooms: 1,
       rate: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / ${booking.appliedRate?.ratePeriod || 'per_night'}`,
       amountAccumulated: revenue,
       bookedBy: `${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || '',
       status: booking.status,
+      typeOfRoom: `Long Stay - ${booking.mou?.counterpartyCategory || 'MOU'}`,
+      remark: [
+        `Guest: ${person}`,
+        booking.guest?.organisation,
+        `MOU: ${booking.mou?.partyName || ''}`,
+        `Accumulated: ${revenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`,
+        `Guest total: ${revenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`,
+        `Booked by: ${`${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || ''}`,
+        `Status: ${booking.status}`,
+      ].filter(Boolean).join(' | '),
     };
   });
   const personTotals = [...rows.reduce((totals, row) => {
@@ -573,17 +584,15 @@ const flattenReservationLogToXlsxBuffer = async (rows, logoPath) => {
 };
 
 const MOU_REVENUE_COLUMNS = [
-  { key: 'tableNo', label: 'No.', width: 8 },
-  { key: 'person', label: 'Guest', width: 24 },
-  { key: 'room', label: 'Room Occupied', width: 34 },
-  { key: 'checkIn', label: 'Check-in', width: 14 },
-  { key: 'checkOut', label: 'Check-out', width: 14 },
-  { key: 'days', label: 'Days', width: 10 },
-  { key: 'rate', label: 'Rate', width: 24 },
-  { key: 'amountAccumulated', label: 'Accumulated Revenue', width: 20 },
-  { key: 'personTotalRevenue', label: 'Guest Total', width: 18 },
-  { key: 'bookedBy', label: 'Booked By', width: 22 },
-  { key: 'status', label: 'Status', width: 14 },
+  { key: 'tableNo', label: 'Serial No.', width: 11 },
+  { key: 'room', label: 'Room Type / Room', width: 22 },
+  { key: 'checkIn', label: 'Check-in Date', width: 15 },
+  { key: 'checkOut', label: 'Departure Date', width: 15 },
+  { key: 'rate', label: 'Unit Price', width: 19 },
+  { key: 'rooms', label: 'Rooms', width: 9 },
+  { key: 'days', label: 'No. of Days', width: 12 },
+  { key: 'typeOfRoom', label: 'Type of Room', width: 15 },
+  { key: 'remark', label: 'Remark', width: 34 },
 ];
 
 const groupMouRevenueRows = (rows) => {
@@ -754,7 +763,7 @@ const flattenRowsToXlsxBuffer = async (report) => {
 
 const flattenRowsToPdfBuffer = (report) =>
   new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 40, size: 'A4', layout: report.title === 'MOU Revenue by Occupant' ? 'landscape' : 'portrait' });
+    const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'portrait' });
     const chunks = [];
 
     doc.on('data', (chunk) => chunks.push(chunk));
@@ -767,7 +776,7 @@ const flattenRowsToPdfBuffer = (report) =>
     if (report.title === 'MOU Revenue by Occupant') {
       const groups = groupMouRevenueRows(rows);
       const printableGroups = groups.length ? groups : [{ name: 'No MOU selected', rows: [], total: 0 }];
-      const columnWidths = [24, 68, 88, 52, 52, 30, 62, 68, 60, 55, 56];
+      const columnWidths = [34, 74, 62, 62, 62, 40, 48, 60, 73];
       const labels = MOU_REVENUE_COLUMNS.map((column) => column.label);
       const tableLeft = 40;
       const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
