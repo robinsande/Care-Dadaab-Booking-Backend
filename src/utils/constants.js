@@ -112,6 +112,7 @@ const REPORT_TYPES = Object.freeze({
   RESERVATION_LOG: 'reservation-log',
   MOU_MONTHLY: 'mou-monthly',
   MOU_ANNUAL: 'mou-annual',
+  MOU_REVENUE: 'mou-revenue',
 });
 
 const REPORT_TYPE_VALUES = Object.freeze(Object.values(REPORT_TYPES));
