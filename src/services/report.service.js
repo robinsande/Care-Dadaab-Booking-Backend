@@ -434,33 +434,37 @@ const flattenReservationLogToXlsxBuffer = async (rows, logoPath) => {
   const worksheet = workbook.addWorksheet('Reservation Log');
 
   worksheet.mergeCells('A1:I1');
-  worksheet.getCell('A1').value = 'ROOM RESERVATION FORM';
-  worksheet.getCell('A1').font = { bold: true, size: 20, color: { argb: 'FFFFFF00' } };
+  worksheet.getCell('A1').value = 'ROOM RESERVATION FORM 1';
+  worksheet.getCell('A1').font = { bold: true, size: 20, color: { argb: 'FFFFFFFF' } };
   worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
   worksheet.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
   worksheet.getRow(1).height = 34;
-  worksheet.getCell('A2').value = 'Recipient';
-  worksheet.getCell('B2').value = 'Dadaab Accommodation Team';
-  worksheet.getCell('E2').value = 'Sender';
-  worksheet.mergeCells('F2:I2');
-  worksheet.getCell('F2').value = 'CARE International';
-  worksheet.getCell('A3').value = 'Team number';
-  worksheet.getCell('B3').value = 'Accommodation';
-  worksheet.getCell('E3').value = 'Confirmation date';
+  worksheet.mergeCells('A2:I2');
+  worksheet.getCell('A2').value = 'Room Reservation Form';
+  worksheet.getCell('A2').font = { bold: true, size: 14, color: { argb: 'FF173B63' } };
+  worksheet.getCell('A2').alignment = { horizontal: 'center' };
+  worksheet.getCell('A3').value = 'Recipient';
+  worksheet.getCell('B3').value = 'Dadaab Accommodation Team';
+  worksheet.getCell('E3').value = 'Sender';
   worksheet.mergeCells('F3:I3');
-  worksheet.getCell('F3').value = new Date().toLocaleDateString('en-GB');
-  worksheet.mergeCells('A4:I4');
-  worksheet.getCell('A4').value = 'Payment method: MOU / invoice according to the selected booking agreement';
-  ['A2', 'E2', 'A3', 'E3'].forEach((cell) => { worksheet.getCell(cell).font = { bold: true }; });
+  worksheet.getCell('F3').value = 'CARE International';
+  worksheet.getCell('A4').value = 'Team number';
+  worksheet.getCell('B4').value = 'Accommodation';
+  worksheet.getCell('E4').value = 'Confirmation date';
+  worksheet.mergeCells('F4:I4');
+  worksheet.getCell('F4').value = new Date().toLocaleDateString('en-GB');
+  worksheet.mergeCells('A5:I5');
+  worksheet.getCell('A5').value = 'Payment method: MOU / invoice according to the selected booking agreement';
+  ['A3', 'E3', 'A4', 'E4'].forEach((cell) => { worksheet.getCell(cell).font = { bold: true }; });
 
   if (fs.existsSync(logoPath)) {
     const imageId = workbook.addImage({ filename: logoPath, extension: 'png' });
     worksheet.addImage(imageId, { tl: { col: 6.25, row: 0.12 }, ext: { width: 80, height: 30 } });
   }
 
-  const headerRow = worksheet.getRow(6);
+  const headerRow = worksheet.getRow(7);
   headerRow.values = RESERVATION_COLUMNS.map((column) => column.label);
-  headerRow.font = { bold: true, size: 10, color: { argb: 'FFFFFF00' } };
+  headerRow.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
   headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
   headerRow.height = 30;
@@ -475,6 +479,11 @@ const flattenReservationLogToXlsxBuffer = async (rows, logoPath) => {
       cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } };
     });
   });
+  const footerRow = printableRows.length + 8;
+  worksheet.mergeCells(`A${footerRow}:I${footerRow}`);
+  worksheet.getCell(`A${footerRow}`).value = 'Remark:';
+  worksheet.mergeCells(`A${footerRow + 1}:I${footerRow + 1}`);
+  worksheet.getCell(`A${footerRow + 1}`).value = 'Hotel confirmation by: ____________________    Confirmation date: ____________________';
   RESERVATION_COLUMNS.forEach((column, index) => { worksheet.getColumn(index + 1).width = column.width; });
   return workbook.xlsx.writeBuffer();
 };
@@ -490,19 +499,31 @@ const flattenRowsToXlsxBuffer = async (report) => {
   }
 
   const reportColumnCount = rows.length ? Object.keys(rows[0]).length : 1;
-  const reportEndColumn = String.fromCharCode(64 + Math.min(reportColumnCount, 26));
+  const reportEndColumn = String.fromCharCode(64 + Math.max(Math.min(reportColumnCount, 26), 5));
   worksheet.mergeCells(`A1:${reportEndColumn}1`);
-  worksheet.getCell('A1').value = 'CARE Accommodation Management System';
+  worksheet.getCell('A1').value = 'ROOM RESERVATION FORM 1';
   worksheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
   worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
   worksheet.getCell('A1').alignment = { vertical: 'middle' };
   worksheet.getRow(1).height = 28;
 
   worksheet.mergeCells(`A2:${reportEndColumn}2`);
-  worksheet.getCell('A2').value = report.title || 'Report';
+  worksheet.getCell('A2').value = report.title || 'Room Reservation Form';
   worksheet.getCell('A2').font = { bold: true, size: 13, color: { argb: 'FF173B63' } };
-  worksheet.getCell('A3').value = 'Generated';
-  worksheet.getCell('B3').value = new Date().toLocaleString('en-GB');
+  worksheet.getCell('A2').alignment = { horizontal: 'center' };
+  worksheet.getCell('A3').value = 'Recipient';
+  worksheet.getCell('B3').value = 'Dadaab Accommodation Team';
+  worksheet.getCell('D3').value = 'Sender';
+  worksheet.mergeCells(`E3:${reportEndColumn}3`);
+  worksheet.getCell('E3').value = 'CARE International';
+  worksheet.getCell('A4').value = 'Team number';
+  worksheet.getCell('B4').value = 'Accommodation';
+  worksheet.getCell('D4').value = 'Confirmation date';
+  worksheet.mergeCells(`E4:${reportEndColumn}4`);
+  worksheet.getCell('E4').value = new Date().toLocaleDateString('en-GB');
+  worksheet.mergeCells(`A5:${reportEndColumn}5`);
+  worksheet.getCell('A5').value = 'Payment method: MOU / invoice according to the selected booking agreement';
+  ['A3', 'D3', 'A4', 'D4'].forEach((cell) => { worksheet.getCell(cell).font = { bold: true }; });
 
   if (fs.existsSync(logoPath)) {
     const imageId = workbook.addImage({ filename: logoPath, extension: 'png' });
@@ -510,15 +531,15 @@ const flattenRowsToXlsxBuffer = async (report) => {
   }
 
   if (!rows.length) {
-    worksheet.getCell('A5').value = 'No data';
+    worksheet.getCell('A7').value = 'No data';
   } else {
     const headers = Object.keys(rows[0]);
-    worksheet.getRow(5).values = headers.map(displayHeader);
-    worksheet.getRow(5).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    worksheet.getRow(5).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
-    worksheet.getRow(5).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    worksheet.getRow(5).height = 28;
-    worksheet.getRow(5).eachCell((cell) => {
+    worksheet.getRow(7).values = headers.map(displayHeader);
+    worksheet.getRow(7).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
+    worksheet.getRow(7).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    worksheet.getRow(7).height = 28;
+    worksheet.getRow(7).eachCell((cell) => {
       cell.border = { top: { style: 'thin', color: { argb: 'FF7F1D1D' } }, bottom: { style: 'thin', color: { argb: 'FF7F1D1D' } }, left: { style: 'thin', color: { argb: 'FFD1D5DB' } }, right: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
     });
     rows.forEach((row) => {
@@ -527,7 +548,7 @@ const flattenRowsToXlsxBuffer = async (report) => {
       }));
     });
     worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber < 6) return;
+      if (rowNumber < 8) return;
       row.alignment = { vertical: 'middle', wrapText: true };
       row.eachCell((cell) => {
         cell.border = { top: { style: 'thin', color: { argb: 'FFD1D5DB' } }, bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } }, left: { style: 'thin', color: { argb: 'FFD1D5DB' } }, right: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
@@ -540,8 +561,14 @@ const flattenRowsToXlsxBuffer = async (report) => {
       });
       column.width = width;
     });
-    worksheet.autoFilter = { from: 'A5', to: `${String.fromCharCode(64 + headers.length)}${rows.length + 5}` };
+    worksheet.autoFilter = { from: 'A7', to: `${String.fromCharCode(64 + headers.length)}${rows.length + 7}` };
   }
+
+  const footerRow = rows.length + 8;
+  worksheet.mergeCells(`A${footerRow}:${reportEndColumn}${footerRow}`);
+  worksheet.getCell(`A${footerRow}`).value = 'Remark:';
+  worksheet.mergeCells(`A${footerRow + 1}:${reportEndColumn}${footerRow + 1}`);
+  worksheet.getCell(`A${footerRow + 1}`).value = 'Hotel confirmation by: ____________________    Confirmation date: ____________________';
 
   return workbook.xlsx.writeBuffer();
 };
@@ -560,7 +587,7 @@ const flattenRowsToPdfBuffer = (report) =>
 
     if (report.title === 'Reservation Log') {
       const tableLeft = 40;
-      const tableTop = 112;
+      const tableTop = 132;
       const columnWidths = [34, 74, 62, 62, 62, 40, 48, 60, 73];
       const headerHeight = 30;
       const rowHeight = 22;
@@ -571,10 +598,12 @@ const flattenRowsToPdfBuffer = (report) =>
       };
 
       doc.rect(tableLeft, 32, 515, 48).fill('#173B63');
-      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(20).text('ROOM RESERVATION FORM', tableLeft, 45, { width: 515, align: 'center' });
-      doc.fillColor('#111827').font('Helvetica').fontSize(8).text('Recipient: Dadaab Accommodation Team', tableLeft, 90);
-      doc.text('Sender: CARE International', 320, 90);
-      doc.text(`Confirmation date: ${new Date().toLocaleDateString('en-GB')}`, tableLeft, 101);
+      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(20).text('ROOM RESERVATION FORM 1', tableLeft, 45, { width: 515, align: 'center' });
+      doc.fillColor('#173B63').font('Helvetica-Bold').fontSize(13).text('Room Reservation Form', tableLeft, 86, { width: 515, align: 'center' });
+      doc.fillColor('#111827').font('Helvetica').fontSize(8).text('Recipient: Dadaab Accommodation Team', tableLeft, 101);
+      doc.text('Sender: CARE International', 320, 101);
+      doc.text('Team number: Accommodation', tableLeft, 112);
+      doc.text(`Confirmation date: ${new Date().toLocaleDateString('en-GB')}`, 320, 112);
       if (fs.existsSync(logoPath)) doc.image(logoPath, 462, 38, { width: 72, height: 34 });
 
       labels.forEach((label, index) => {
@@ -591,26 +620,32 @@ const flattenRowsToPdfBuffer = (report) =>
           drawCell(x, y, columnWidths[columnIndex], rowHeight, '#FFFFFF', displayValue(row[column.key]));
         });
       });
+      doc.fillColor('#111827').font('Helvetica').fontSize(8).text('Payment method: MOU / invoice according to the selected booking agreement', tableLeft, 602);
+      doc.font('Helvetica-Bold').fontSize(10).text('Remark:', tableLeft, 620);
+      doc.font('Helvetica').fontSize(8).text('Hotel confirmation by: ____________________    Confirmation date: ____________________', tableLeft, 662);
       doc.end();
       return;
     }
 
-    if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, 40, 32, { width: 110, height: 48 });
-    }
-    doc.fillColor('#173B63').fontSize(18).text('CARE Accommodation Management System', 165, 42);
-    doc.fillColor('#E8721E').fontSize(14).text(report.title || 'Report', 40, 100);
-    doc.fillColor('#1f2933');
-    doc.moveDown(2);
+    doc.rect(40, 32, 515, 48).fill('#173B63');
+    doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(18).text('ROOM RESERVATION FORM 1', 40, 45, { width: 515, align: 'center' });
+    doc.fillColor('#173B63').font('Helvetica-Bold').fontSize(13).text(report.title || 'Room Reservation Form', 40, 86, { width: 515, align: 'center' });
+    doc.fillColor('#111827').font('Helvetica').fontSize(8).text('Recipient: Dadaab Accommodation Team', 40, 101);
+    doc.text('Sender: CARE International', 320, 101);
+    doc.text('Team number: Accommodation', 40, 112);
+    doc.text(`Confirmation date: ${new Date().toLocaleDateString('en-GB')}`, 320, 112);
+    doc.text('Payment method: MOU / invoice according to the selected booking agreement', 40, 123);
 
     if (rows.length === 0) {
-      doc.fontSize(12).text('No data');
+      doc.fontSize(12).text('No data', 40, 155);
+      doc.font('Helvetica-Bold').fontSize(10).text('Remark:', 40, 190);
+      doc.font('Helvetica').fontSize(8).text('Hotel confirmation by: ____________________    Confirmation date: ____________________', 40, 232);
       doc.end();
       return;
     }
 
     const headers = Object.keys(rows[0]);
-    const tableTop = 128;
+    const tableTop = 140;
     const tableLeft = 40;
     const tableWidth = 515;
     const columnWidth = tableWidth / headers.length;
@@ -646,6 +681,14 @@ const flattenRowsToPdfBuffer = (report) =>
       });
       currentY += rowHeight;
     });
+
+    if (currentY + 100 > doc.page.height - 45) {
+      doc.addPage();
+      currentY = 60;
+    }
+    doc.fillColor('#111827').font('Helvetica').fontSize(8).text('Payment method: MOU / invoice according to the selected booking agreement', tableLeft, currentY + 10);
+    doc.font('Helvetica-Bold').fontSize(10).text('Remark:', tableLeft, currentY + 28);
+    doc.font('Helvetica').fontSize(8).text('Hotel confirmation by: ____________________    Confirmation date: ____________________', tableLeft, currentY + 70);
 
     doc.fillColor('#1f2933');
 
