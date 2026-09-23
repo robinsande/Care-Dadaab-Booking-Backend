@@ -18,6 +18,7 @@ const guestFieldRules = [
     .isIn(GENDER_VALUES)
     .withMessage(`Gender must be one of: ${GENDER_VALUES.join(', ')}.`),
   body('contractType').optional().trim(),
+  body('careStaffLocation').optional().isIn(['', 'CARE Kenya Staff', 'CARE International Staff']),
   body('kenyaOffice').optional().trim(),
   body('internationalCountry').optional().trim(),
   body('kenyaOffice').custom((value, { req }) => {
@@ -26,6 +27,14 @@ const guestFieldRules = [
       && ['kenya', 'kenyan', 'local (kenyan)'].includes(origin);
     if (needsOffice && !['Nakuru', 'Nairobi', 'Kisumu', 'Regional Office'].includes(value)) {
       throw new Error('Select a valid Kenya office for CARE Staff.');
+    }
+    return true;
+  }),
+  body('internationalCountry').custom((value, { req }) => {
+    const needsCountry = req.body.contractType === 'CARE Staff'
+      && req.body.careStaffLocation === 'CARE International Staff';
+    if (needsCountry && !String(value || '').trim()) {
+      throw new Error('Country of origin is required for CARE International Staff.');
     }
     return true;
   }),
@@ -93,6 +102,7 @@ const updateBookingRules = [
   body('reasonForVisit').optional().trim(),
   body('gender').optional().isIn(GENDER_VALUES),
   body('contractType').optional().trim(),
+  body('careStaffLocation').optional().isIn(['', 'CARE Kenya Staff', 'CARE International Staff']),
   body('kenyaOffice').optional().trim(),
   body('internationalCountry').optional().trim(),
   body('kenyaOffice').custom((value, { req }) => {
@@ -101,6 +111,14 @@ const updateBookingRules = [
       && ['kenya', 'kenyan', 'local (kenyan)'].includes(origin);
     if (needsOffice && !['Nakuru', 'Nairobi', 'Kisumu', 'Regional Office'].includes(value)) {
       throw new Error('Select a valid Kenya office for CARE Staff.');
+    }
+    return true;
+  }),
+  body('internationalCountry').custom((value, { req }) => {
+    const needsCountry = req.body.contractType === 'CARE Staff'
+      && req.body.careStaffLocation === 'CARE International Staff';
+    if (needsCountry && !String(value || '').trim()) {
+      throw new Error('Country of origin is required for CARE International Staff.');
     }
     return true;
   }),

@@ -17,8 +17,15 @@ const bookingRequestRules = [
   body('organisation').optional().trim(),
   body('gender').optional().isIn(['Male', 'Female']),
   body('contractType').optional().trim(),
+  body('careStaffLocation').optional().isIn(['', 'CARE Kenya Staff', 'CARE International Staff']),
   body('kenyaOffice').optional().trim(),
   body('internationalCountry').optional().trim(),
+  body('internationalCountry').custom((value, { req }) => {
+    if (req.body.contractType === 'CARE Staff' && req.body.careStaffLocation === 'CARE International Staff' && !String(value || '').trim()) {
+      throw new Error('Country of origin is required for CARE International Staff.');
+    }
+    return true;
+  }),
   body('departureCountry').optional().isIn(['Local (Kenyan)', 'International']),
   body('reasonForVisit').optional().trim(),
   body('remarks').optional().trim(),

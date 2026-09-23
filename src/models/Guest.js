@@ -10,6 +10,7 @@ const guestSchema = new mongoose.Schema(
     organisation: { type: String, trim: true, default: '' },
     gender: { type: String, enum: ['', 'Male', 'Female'], default: '' },
     contractType: { type: String, trim: true, default: '' },
+    careStaffLocation: { type: String, enum: ['', 'CARE Kenya Staff', 'CARE International Staff'], default: '' },
     departureCountry: { type: String, enum: ['', 'Local (Kenyan)', 'International'], default: '' },
     kenyaOffice: { type: String, trim: true, default: '' },
     internationalCountry: { type: String, trim: true, default: '' },
