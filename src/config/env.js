@@ -28,6 +28,10 @@ const env = {
   adminPanelUrl: process.env.ADMIN_PANEL_URL || '/admin/bookings.html',
 
   mongoUri: process.env.MONGODB_URI,
+  mongoMaxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE) || 30,
+  mongoMinPoolSize: Number(process.env.MONGO_MIN_POOL_SIZE) || 5,
+  mongoServerSelectionTimeoutMS: Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT) || 5000,
+  mongoSocketTimeoutMS: Number(process.env.MONGO_SOCKET_TIMEOUT) || 45000,
 
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',

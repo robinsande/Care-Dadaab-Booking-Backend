@@ -3,14 +3,14 @@ const env = require('./env');
 const logger = require('../utils/logger');
 
 const MONGO_OPTIONS = {
-  serverSelectionTimeoutMS: 15000,
-  socketTimeoutMS: 45000,
+  serverSelectionTimeoutMS: env.mongoServerSelectionTimeoutMS,
+  socketTimeoutMS: env.mongoSocketTimeoutMS,
   connectTimeoutMS: 20000,
   heartbeatFrequencyMS: 5000,
   family: 4,
   autoIndex: env.nodeEnv !== 'production',
-  maxPoolSize: 20,
-  minPoolSize: 3,
+  maxPoolSize: env.mongoMaxPoolSize,
+  minPoolSize: env.mongoMinPoolSize,
   maxIdleTimeMS: 60000,
 };
 
