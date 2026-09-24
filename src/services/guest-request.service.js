@@ -1,4 +1,4 @@
-const { GuestRequest, Booking, Guest, User, Invoice } = require('../models');
+const { GuestRequest, Booking, Guest, User, Invoice, Room } = require('../models');
 const ApiError = require('../utils/ApiError');
 const campService = require('./camp.service');
 const bookingService = require('./booking.service');
@@ -216,10 +216,14 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
 
   let booking = null;
   if (request.type === 'booking') {
-    if (!campId || !blockId || !roomId) {
-      throw ApiError.badRequest('Camp, block and room assignment are required to approve a booking request.');
-    }
-    booking = (await bookingService.createBooking({
+    const rooms = campId && blockId && roomId
+      ? [{ _id: roomId, block: blockId }]
+      : await Room.find({ camp: request.camp, isActive: true }).sort({ blockName: 1, roomNumber: 1 }).select('_id block').lean();
+    if (!rooms.length) throw ApiError.badRequest('No active rooms are available in the requested camp.');
+    let lastError;
+    for (const room of rooms) {
+      try {
+        booking = (await bookingService.createBooking({
       firstName: request.requestedData?.firstName || request.guest.firstName,
       lastName: request.requestedData?.lastName || request.guest.lastName,
       email: request.guest.email,
@@ -233,9 +237,9 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
       departureCountry: request.requestedData?.departureCountry,
       arrivalDate: request.arrivalDate,
       departureDate: request.departureDate,
-      campId,
-      blockId,
-      roomId,
+      campId: campId || request.camp,
+      blockId: blockId || room.block,
+      roomId: room._id,
       stayType: request.stayType,
       mouId: request.mou,
       reasonForVisit: request.requestedData?.reasonForVisit || request.reason,
@@ -243,7 +247,13 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
       driverPickup: request.requestedData?.driverPickup,
       rateId: request.requestedData?.rateId,
       guestAccountId: request.guest._id,
-    }, actor)).booking;
+        }, actor)).booking;
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!booking) throw lastError || ApiError.badRequest('Unable to assign an available room.');
   } else {
     booking = await getGuestBooking(request.guest, request.booking);
     if (request.type === 'adjustment') {
