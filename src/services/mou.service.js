@@ -50,7 +50,8 @@ const refreshStatus = async (mou) => {
 
 const create = async (payload) => {
   const { start, end } = normalizeDates(payload.startDate, payload.endDate);
-  const individual = payload.mouType === 'individual';
+  const revenue = payload.mouType === 'revenue';
+  const waived = payload.counterpartyCategory === 'staff';
   const mou = await Mou.create({
     mouType: payload.mouType,
     partyName: payload.partyName,
@@ -58,10 +59,10 @@ const create = async (payload) => {
     counterpartyCategory: payload.counterpartyCategory,
     startDate: start,
     endDate: end,
-    paymentFrequency: individual ? 'monthly' : 'annual',
-    rateAmount: payload.rateAmount ?? (individual ? INDIVIDUAL_MONTHLY_RATE : 0),
+    paymentFrequency: revenue ? 'annual' : 'monthly',
+    rateAmount: waived ? 0 : payload.rateAmount ?? 0,
     rateCurrency: payload.rateCurrency || 'KES',
-    ratePeriod: individual ? 'per_month' : 'per_year',
+    ratePeriod: revenue ? 'per_year' : 'per_month',
     status: payload.status || 'draft',
     documentRef: payload.documentRef || '',
     linkedGuests: payload.linkedGuests || [],

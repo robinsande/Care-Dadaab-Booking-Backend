@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const { MOU_CATEGORY_VALUES } = require('../utils/mou');
-const MOU_TYPES = ['partner', 'individual'];
+const MOU_TYPES = ['guest_stay', 'revenue'];
 const STATUSES = ['draft', 'active', 'expiring_soon', 'expired', 'terminated', 'renewed'];
 
 const mouSchema = new mongoose.Schema(
@@ -12,7 +12,7 @@ const mouSchema = new mongoose.Schema(
     startDate: { type: Date, required: true, index: true },
     endDate: { type: Date, required: true, index: true },
     paymentFrequency: { type: String, enum: ['annual', 'monthly'], required: true },
-    rateAmount: { type: Number, required: true, min: 0 },
+    rateAmount: { type: Number, required: true, min: 0, default: 0 },
     rateCurrency: { type: String, default: 'KES', trim: true, uppercase: true },
     ratePeriod: { type: String, enum: ['per_year', 'per_month'], required: true },
     status: { type: String, enum: STATUSES, default: 'draft', index: true },

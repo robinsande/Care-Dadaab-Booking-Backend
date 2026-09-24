@@ -3,6 +3,8 @@ const MOU_CATEGORY_VALUES = Object.freeze([
   'government',
   'municipality',
   'staff',
+  'other_guest',
+  'local_visitor',
 ]);
 
 const CONTRACT_MOU_CATEGORIES = Object.freeze({
@@ -10,6 +12,8 @@ const CONTRACT_MOU_CATEGORIES = Object.freeze({
   'Implementing Partner': 'implementing_partner',
   'Partner Organisation': 'implementing_partner',
   Government: 'government',
+  Visitor: 'local_visitor',
+  Other: 'other_guest',
 });
 
 const getMouCategoryForContractType = (contractType) =>
@@ -20,6 +24,8 @@ const categoryLabel = (category) => ({
   government: 'Government',
   municipality: 'Municipality',
   staff: 'CARE Staff',
+  other_guest: 'Other Related Guest',
+  local_visitor: 'Local Visitor',
 }[category] || category);
 
 module.exports = {

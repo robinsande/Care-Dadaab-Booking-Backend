@@ -2,7 +2,7 @@ const { body, query } = require('express-validator');
 const { MOU_CATEGORY_VALUES } = require('../utils/mou');
 
 const createMouRules = [
-  body('mouType').isIn(['partner', 'individual']),
+  body('mouType').isIn(['guest_stay', 'revenue']),
   body('partyName').trim().notEmpty(),
   body('counterpartyCategory').isIn(MOU_CATEGORY_VALUES),
   body('startDate').isISO8601(),
@@ -14,7 +14,7 @@ const createMouRules = [
 ];
 
 const mouQueryRules = [
-  query('mouType').optional().isIn(['partner', 'individual']),
+  query('mouType').optional().isIn(['guest_stay', 'revenue']),
   query('counterpartyCategory').optional().isIn(MOU_CATEGORY_VALUES),
   query('status').optional().isIn(['draft', 'active', 'expiring_soon', 'expired', 'terminated', 'renewed']),
   query('search').optional().trim(),
