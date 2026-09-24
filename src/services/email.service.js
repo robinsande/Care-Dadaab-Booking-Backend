@@ -3,7 +3,11 @@ const { User } = require('../models');
 const env = require('../config/env');
 const logger = require('../utils/logger');
 
-const adminPanelUrl = String(env.adminPanelUrl || '/').replace(/\/admin\/bookings\.html(?:\?.*)?$/, '/');
+const defaultAdminPanelUrl = 'https://care-dadaab-booking.onrender.com/';
+const configuredAdminPanelUrl = String(env.adminPanelUrl || defaultAdminPanelUrl).replace(/\/admin\/bookings\.html(?:\?.*)?$/, '/');
+const adminPanelUrl = /^https?:\/\//i.test(configuredAdminPanelUrl)
+  ? configuredAdminPanelUrl
+  : new URL(configuredAdminPanelUrl, defaultAdminPanelUrl).toString();
 
 let transporter = null;
 
