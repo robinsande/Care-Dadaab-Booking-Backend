@@ -14,6 +14,7 @@ const {
   ROOM_STATUS,
 } = require('../utils/constants');
 const { startOfDay, endOfDay } = require('../utils/dates');
+const { normalizeReportFormat } = require('../utils/reportExport');
 const dashboardService = require('./dashboard.service');
 
 const buildDateFilter = (query, field = 'arrivalDate') => {
@@ -264,7 +265,7 @@ const reportReservationLog = async (query) => {
     .lean();
 
   const rows = bookings.map((booking, index) => ({
-      tableNo: index + 1,
+      bookingReference: booking.bookingReference || '',
       roomType: `${booking.blockName || ''} / Room ${booking.roomNumber || ''}`.trim(),
       checkInDate: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
       departureDate: new Date(booking.departureDate).toLocaleDateString('en-GB'),
@@ -575,7 +576,7 @@ const isMouRevenueReport = (report) => report.title === 'MOU Revenue by Occupant
 const isRevenueFormReport = (report) => isMouRevenueReport(report) || report.title === 'Short Stay Revenue';
 
 const RESERVATION_COLUMNS = [
-  { key: 'tableNo', label: 'Serial No.', width: 11 },
+  { key: 'bookingReference', label: 'Booking Reference', width: 20 },
   { key: 'roomType', label: 'Room Type / Room', width: 22 },
   { key: 'checkInDate', label: 'Check-in Date', width: 15 },
   { key: 'departureDate', label: 'Departure Date', width: 15 },
@@ -648,7 +649,7 @@ const flattenReservationLogToXlsxBuffer = async (rows, logoPath, report) => {
 };
 
 const MOU_REVENUE_COLUMNS = [
-  { key: 'tableNo', label: 'Serial No.', width: 11 },
+  { key: 'bookingReference', label: 'Booking Reference', width: 20 },
   { key: 'room', label: 'Room Type / Room', width: 22 },
   { key: 'checkIn', label: 'Check-in Date', width: 15 },
   { key: 'checkOut', label: 'Departure Date', width: 15 },
@@ -714,7 +715,7 @@ const flattenMouRevenueToXlsxBuffer = async (report, logoPath) => {
     headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
     headerRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     group.rows.forEach((row, index) => {
-      const excelRow = worksheet.addRow(MOU_REVENUE_COLUMNS.map((column) => displayValue(column.key === 'tableNo' ? index + 1 : row[column.key])));
+      const excelRow = worksheet.addRow(MOU_REVENUE_COLUMNS.map((column) => displayValue(row[column.key])));
       excelRow.alignment = { vertical: 'middle', wrapText: true };
       excelRow.eachCell((cell) => { cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }; });
     });
@@ -883,7 +884,7 @@ const flattenRowsToPdfBuffer = (report) =>
           }
           MOU_REVENUE_COLUMNS.forEach((column, columnIndex) => {
             const x = tableLeft + columnWidths.slice(0, columnIndex).reduce((sum, width) => sum + width, 0);
-            drawCell(x, currentY, columnWidths[columnIndex], 24, rowIndex % 2 ? '#F4F7FA' : '#FFFFFF', column.key === 'tableNo' ? rowIndex + 1 : row[column.key]);
+            drawCell(x, currentY, columnWidths[columnIndex], 24, rowIndex % 2 ? '#F4F7FA' : '#FFFFFF', row[column.key]);
           });
           currentY += 24;
         });
@@ -1013,7 +1014,7 @@ const generateReport = async (type, query = {}) => {
   }
 
   const report = await generators[type](query);
-  const format = (query.format || 'json').toLowerCase();
+  const format = normalizeReportFormat(query.format);
 
   if (format === 'csv') {
     return { format: 'csv', contentType: 'text/csv', filename: `${type}.csv`, data: flattenRowsToCsv(report) };
@@ -1040,4 +1041,7 @@ const generateReport = async (type, query = {}) => {
   return { format: 'json', contentType: 'application/json', data: report };
 };
 
-module.exports = { generateReport, REPORT_TYPE_VALUES };
+module.exports = {
+  generateReport,
+  REPORT_TYPE_VALUES,
+};
