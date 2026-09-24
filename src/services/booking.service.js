@@ -23,6 +23,9 @@ const isCareStaffLongStay = (payload) =>
   payload.stayType === 'Long Stay'
   && /^(?:care\s*)?staff$/i.test(String(payload.contractType || '').trim());
 
+const isCareStaff = (payload) =>
+  /^(?:care\s*)?staff$/i.test(String(payload.contractType || '').trim());
+
 const recordEmailSent = (booking, emailType) =>
   auditService.record({
     action: AUDIT_ACTIONS.EMAIL_SENT,
@@ -185,8 +188,8 @@ const createBooking = async (payload, actor) => {
     appliedRate,
     createdBy: actor._id,
     guestAccount: payload.guestAccountId || null,
-    billingType: isCareStaffLongStay(payload) ? 'intercompany' : 'guest',
-    billingAccount: isCareStaffLongStay(payload) ? 'CARE Intercompany Building' : '',
+    billingType: isCareStaff(payload) ? 'waived' : 'guest',
+    billingAccount: isCareStaff(payload) ? 'CARE Staff Waiver' : '',
   });
 
   await auditService.record({
@@ -217,9 +220,11 @@ const createBooking = async (payload, actor) => {
     const recipients = await getBookingNotificationRecipients(booking, actor);
     const confirmation = booking.billingType === 'intercompany'
       ? emailService.sendIntercompanyBookingConfirmation(booking, recipients)
+      : booking.billingType === 'waived'
+        ? emailService.sendWaivedBookingConfirmation(booking, recipients)
       : emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients);
     confirmation
-      .then(() => recordEmailSent(booking, booking.billingType === 'intercompany' ? 'Intercompany Booking Confirmation' : 'Booking Confirmation and Invoice'))
+      .then(() => recordEmailSent(booking, booking.billingType === 'intercompany' ? 'Intercompany Booking Confirmation' : booking.billingType === 'waived' ? 'Waived Booking Confirmation' : 'Booking Confirmation and Invoice'))
       .catch((error) => {
         logger.warn(`Booking confirmation email failed: ${error.message}`);
       });
@@ -239,6 +244,8 @@ const resendBookingEmails = async (bookingId, actor) => {
   const recipients = await getBookingNotificationRecipients(booking, actor);
   const bookingEmailSent = booking.billingType === 'intercompany'
     ? await emailService.sendIntercompanyBookingConfirmation(booking, recipients)
+    : booking.billingType === 'waived'
+      ? await emailService.sendWaivedBookingConfirmation(booking, recipients)
     : await emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients);
 
   await auditService.record({
@@ -439,8 +446,8 @@ const updateBooking = async (bookingId, payload, actor) => {
       booking.room = room._id;
       booking.roomNumber = room.roomNumber;
       booking.stayType = stayType;
-      booking.billingType = isCareStaffLongStay({ stayType, contractType: booking.guest.contractType }) ? 'intercompany' : 'guest';
-      booking.billingAccount = booking.billingType === 'intercompany' ? 'CARE Intercompany Building' : '';
+      booking.billingType = isCareStaff({ stayType, contractType: booking.guest.contractType }) ? 'waived' : 'guest';
+      booking.billingAccount = booking.billingType === 'waived' ? 'CARE Staff Waiver' : '';
       if (stayType === 'Long Stay') {
         if (durationNights <= 21) throw ApiError.badRequest('Long Stay must be more than 21 nights.');
         const mou = await mouService.getActiveById(payload.mouId || booking.mou);

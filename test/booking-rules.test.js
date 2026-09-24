@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { resolveAppliedRate } = require('../src/services/booking.service');
-const { isIntercompanyCareStaffLongStay } = require('../src/services/invoice.service');
+const { isNonBillableCareStaff, isIntercompanyCareStaffLongStay } = require('../src/services/invoice.service');
+const { calculateBookingRevenue } = require('../src/services/report.service');
 const { buildPaymentRows, INDIVIDUAL_MONTHLY_RATE } = require('../src/services/mou.service');
 
 const overlaps = (arrival, departure, existingArrival, existingDeparture) =>
@@ -69,4 +70,18 @@ test('CARE Staff long stays use intercompany billing', () => {
   assert.equal(isIntercompanyCareStaffLongStay({ stayType: 'Long Stay', guest: { contractType: 'CARE Staff' } }), true);
   assert.equal(isIntercompanyCareStaffLongStay({ stayType: 'Short Stay', guest: { contractType: 'CARE Staff' } }), false);
   assert.equal(isIntercompanyCareStaffLongStay({ stayType: 'Long Stay', guest: { contractType: 'Consultant' } }), false);
+});
+
+test('CARE Staff bookings are waived but remain reportable', () => {
+  assert.equal(isNonBillableCareStaff({ contractType: 'CARE Staff', organisation: 'CARE International' }), true);
+  assert.equal(calculateBookingRevenue({
+    guest: { contractType: 'CARE Staff' },
+    appliedRate: { amount: 6000, ratePeriod: 'per_night' },
+    durationNights: 4,
+  }), 0);
+  assert.equal(calculateBookingRevenue({
+    guest: { contractType: 'Consultant' },
+    appliedRate: { amount: 6000, ratePeriod: 'per_night' },
+    durationNights: 4,
+  }), 24000);
 });

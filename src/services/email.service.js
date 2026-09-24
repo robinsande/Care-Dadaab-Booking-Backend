@@ -179,6 +179,24 @@ const sendIntercompanyBookingConfirmation = (booking, recipients = booking.guest
   });
 };
 
+const sendWaivedBookingConfirmation = (booking, recipients = booking.guest.email) => {
+  const body = `
+    <p>Dear ${booking.guest.firstName},</p>
+    <p>Your accommodation booking has been confirmed. This CARE Staff booking is waived and no payment is due.</p>
+    ${detailRow('Booking Reference', booking.bookingReference)}
+    ${detailRow('Camp', booking.campName)}
+    ${detailRow('Room', `Block ${booking.blockName} Room ${booking.roomNumber}`)}
+    ${detailRow('Arrival Date', formatDate(booking.arrivalDate))}
+    ${detailRow('Departure Date', formatDate(booking.departureDate))}
+    ${detailRow('Billing', 'CARE Staff Waiver')}
+  `;
+  return sendEmail({
+    to: recipients,
+    subject: `Booking Confirmed - ${booking.bookingReference}`,
+    html: layout('Booking Confirmation', body),
+  });
+};
+
 const sendBookingUpdated = (booking, recipients = booking.guest.email) => {
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
@@ -453,6 +471,7 @@ module.exports = {
   sendBookingCreated,
   sendBookingConfirmationWithInvoice,
   sendIntercompanyBookingConfirmation,
+  sendWaivedBookingConfirmation,
   sendBookingUpdated,
   sendBookingExtended,
   sendBookingCancelled,

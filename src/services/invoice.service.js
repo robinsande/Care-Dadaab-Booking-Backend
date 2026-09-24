@@ -18,8 +18,7 @@ const logger = require('../utils/logger');
 const env = require('../config/env');
 
 const isNonBillableCareStaff = (guest = {}) =>
-  /^(?:care\s*)?staff$/i.test(String(guest.contractType || '').trim())
-  && /^care\s+kenya$/i.test(String(guest.organisation || '').trim());
+  /^(?:care\s*)?staff$/i.test(String(guest.contractType || '').trim());
 
 const isIntercompanyCareStaffLongStay = (bookingOrGuest, stayType = '') => {
   const guest = bookingOrGuest?.guest || bookingOrGuest || {};

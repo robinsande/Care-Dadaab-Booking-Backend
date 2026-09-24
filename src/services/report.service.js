@@ -356,6 +356,7 @@ const reportMouAnnual = async (query) => {
 };
 
 const calculateBookingRevenue = (booking) => {
+  if (/^(?:care\s*)?staff$/i.test(String(booking.guest?.contractType || '').trim())) return 0;
   const rate = Number(booking.appliedRate?.amount || 0);
   const nights = Number(booking.durationNights || 0);
   if (booking.appliedRate?.ratePeriod === 'per_month') {
@@ -417,6 +418,11 @@ const reportMouRevenue = async (query) => {
         `Booked by: ${`${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || ''}`,
         `Status: ${booking.status}`,
       ].filter(Boolean).join(' | '),
+      roomType: `${booking.campName || ''} / ${booking.blockName || ''} / Room ${booking.roomNumber || ''}`,
+      checkInDate: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
+      departureDate: new Date(booking.departureDate).toLocaleDateString('en-GB'),
+      unitPrice: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / ${booking.appliedRate?.ratePeriod || 'per_night'}`,
+      numberOfDays: booking.durationNights || 0,
     };
   });
   const personTotals = [...rows.reduce((totals, row) => {
@@ -479,6 +485,11 @@ const reportShortStayRevenue = async (query) => {
       status: booking.status,
       typeOfRoom: 'Short Stay',
       remark: `Booking: ${booking.bookingReference} | Guest: ${person} | Accumulated: ${revenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })} | Booked by: ${`${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || ''}`,
+      roomType: `${booking.campName || ''} / ${booking.blockName || ''} / Room ${booking.roomNumber || ''}`,
+      checkInDate: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
+      departureDate: new Date(booking.departureDate).toLocaleDateString('en-GB'),
+      unitPrice: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / night`,
+      numberOfDays: booking.durationNights || 0,
       tableNo: index + 1,
     };
   });
@@ -650,14 +661,14 @@ const flattenReservationLogToXlsxBuffer = async (rows, logoPath, report) => {
 
 const MOU_REVENUE_COLUMNS = [
   { key: 'bookingReference', label: 'Booking Reference', width: 20 },
-  { key: 'room', label: 'Room Type / Room', width: 22 },
-  { key: 'checkIn', label: 'Check-in Date', width: 15 },
-  { key: 'checkOut', label: 'Departure Date', width: 15 },
-  { key: 'rate', label: 'Unit Price', width: 19 },
+  { key: 'roomType', label: 'Room Type / Room', width: 22 },
+  { key: 'checkInDate', label: 'Check-in Date', width: 15 },
+  { key: 'departureDate', label: 'Departure Date', width: 15 },
+  { key: 'unitPrice', label: 'Unit Price', width: 19 },
   { key: 'rooms', label: 'Rooms', width: 9 },
-  { key: 'days', label: 'No. of Days', width: 12 },
-  { key: 'typeOfRoom', label: 'Type of Room', width: 15 },
-  { key: 'remark', label: 'Remark', width: 34 },
+  { key: 'numberOfDays', label: 'No. of Days', width: 12 },
+  { key: 'typeOfRoom', label: 'Stay Type', width: 15 },
+  { key: 'remark', label: 'Remark / Occupant / MOU', width: 34 },
 ];
 
 const groupMouRevenueRows = (rows) => {
@@ -1043,5 +1054,6 @@ const generateReport = async (type, query = {}) => {
 
 module.exports = {
   generateReport,
+  calculateBookingRevenue,
   REPORT_TYPE_VALUES,
 };
