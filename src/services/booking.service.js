@@ -17,6 +17,7 @@ const {
   BOOKING_STATUS,
   ACTOR_TYPE,
   AUDIT_ACTIONS,
+  ROLES,
 } = require('../utils/constants');
 
 const isCareStaffLongStay = (payload) =>
@@ -36,12 +37,16 @@ const recordEmailSent = (booking, emailType) =>
   });
 
 const getBookingNotificationRecipients = async (booking, actor = null) => {
-  const officer = booking.createdBy
-    ? await User.findById(booking.createdBy).select('email').lean()
-    : actor;
+  const [officer, superAdmins] = await Promise.all([
+    booking.createdBy
+      ? User.findById(booking.createdBy).select('email').lean()
+      : actor,
+    User.find({ isActive: true, role: ROLES.SUPER_ADMIN }).select('email').lean(),
+  ]);
   return [...new Set([
     booking.guest.email,
     officer?.email || actor?.email,
+    ...superAdmins.map((user) => user.email),
   ].filter(Boolean))];
 };
 
@@ -162,8 +167,11 @@ const createBooking = async (payload, actor) => {
       throw ApiError.badRequest('The booking dates must fall within the active MOU term.');
     }
   } else {
-    appliedRate = await snapshotRate(camp._id, payload.stayType, payload.rateId);
+    appliedRate = isCareStaff(payload)
+      ? { rateId: null, amount: 0, currency: 'KES', stayType: payload.stayType, ratePeriod: 'per_night' }
+      : await snapshotRate(camp._id, payload.stayType, payload.rateId);
   }
+  if (isCareStaff(payload)) appliedRate.amount = 0;
   const bookingReference = await referenceService.generateBookingReference();
 
   const booking = await Booking.create({
@@ -448,6 +456,9 @@ const updateBooking = async (bookingId, payload, actor) => {
       booking.stayType = stayType;
       booking.billingType = isCareStaff({ stayType, contractType: booking.guest.contractType }) ? 'waived' : 'guest';
       booking.billingAccount = booking.billingType === 'waived' ? 'CARE Staff Waiver' : '';
+      if (booking.billingType === 'waived') {
+        booking.appliedRate = { rateId: null, amount: 0, currency: booking.appliedRate?.currency || 'KES', stayType, ratePeriod: 'per_night' };
+      }
       if (stayType === 'Long Stay') {
         if (durationNights <= 21) throw ApiError.badRequest('Long Stay must be more than 21 nights.');
         const mou = await mouService.getActiveById(payload.mouId || booking.mou);

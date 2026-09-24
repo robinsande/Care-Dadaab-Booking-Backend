@@ -25,7 +25,7 @@ const env = {
   isProduction: (process.env.NODE_ENV || 'development') === 'production',
   port: parseInt(process.env.PORT, 10) || 5000,
   apiPrefix: process.env.API_PREFIX || '/api/v1',
-  adminPanelUrl: process.env.ADMIN_PANEL_URL || '/admin/bookings.html',
+  adminPanelUrl: process.env.ADMIN_PANEL_URL || '/',
 
   mongoUri: process.env.MONGODB_URI,
   mongoMaxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE) || 30,
@@ -52,6 +52,7 @@ const env = {
     name: process.env.EMAIL_FROM_NAME || 'CARE Kenya Dadaab Accommodation',
     address: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER || 'no-reply@example.com',
   },
+  emailReplyTo: process.env.EMAIL_REPLY_TO || process.env.SUPPORT_EMAIL || process.env.SMTP_USER,
 
   support: {
     email: process.env.SUPPORT_EMAIL || 'accommodation.dadaab@care.org',

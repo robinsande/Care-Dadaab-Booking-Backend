@@ -14,7 +14,7 @@ const REQUEST_TYPES = ['booking', 'adjustment', 'early_checkout', 'extension'];
 
 const staffRecipients = async () => {
   const [users, settings] = await Promise.all([
-    User.find({ isActive: true }).select('email').lean(),
+    User.find({ isActive: true, role: 'Super Admin' }).select('email').lean(),
     settingsService.getSettings(),
   ]);
   return [...new Set([
@@ -50,6 +50,7 @@ const createBookingRequest = async (guest, payload) => {
   if (!camp.isActive) throw ApiError.conflict('The selected camp is not active.');
   const nights = Math.ceil((departure - arrival) / (24 * 60 * 60 * 1000));
   const stayType = payload.stayType || 'Short Stay';
+  const isCareStaff = /^(?:care\s*)?staff$/i.test(String(payload.contractType || guest.contractType || '').trim());
   if (stayType === 'Short Stay' && nights > 21) {
     throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this request to Long Stay with an active MOU.');
   }
@@ -59,13 +60,13 @@ const createBookingRequest = async (guest, payload) => {
   if (stayType === 'Long Stay' && nights <= 21) {
     throw ApiError.badRequest('Long Stay must be more than 21 nights.');
   }
-  if (stayType === 'Short Stay' && !payload.rateId) {
+  if (stayType === 'Short Stay' && !payload.rateId && !isCareStaff) {
     throw ApiError.badRequest('Select a current short-stay room rate.');
   }
   const mou = stayType === 'Long Stay'
     ? await mouService.getActiveForBooking(payload.mouId, payload)
     : null;
-  if (stayType === 'Short Stay') {
+  if (stayType === 'Short Stay' && !isCareStaff) {
     await rateService.getCurrentRateById(payload.campId, payload.rateId, stayType);
   }
   const request = await GuestRequest.create({
@@ -91,7 +92,7 @@ const createBookingRequest = async (guest, payload) => {
       reasonForVisit: payload.reasonForVisit || payload.reason || '',
       remarks: payload.remarks || '',
       driverPickup: Boolean(payload.driverPickup),
-      rateId: stayType === 'Short Stay' ? (payload.rateId || '') : '',
+      rateId: stayType === 'Short Stay' && !isCareStaff ? (payload.rateId || '') : '',
     },
   });
   await notify(request, guest);

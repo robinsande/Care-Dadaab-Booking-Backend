@@ -18,7 +18,12 @@ const authorize = (...allowedRoles) => (req, _res, next) => {
 };
 
 // Convenience: any authenticated staff member (officer or super admin).
-const anyStaff = authorize(ROLES.ACCOMMODATION_OFFICER, ROLES.SUPER_ADMIN);
+const anyStaff = (req, res, next) => {
+  if (req.user?.role === ROLES.SYSTEM_VIEWER && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next(ApiError.forbidden('System Viewer accounts are read-only.'));
+  }
+  return authorize(ROLES.ACCOMMODATION_OFFICER, ROLES.SUPER_ADMIN, ROLES.SYSTEM_VIEWER)(req, res, next);
+};
 
 // Convenience: super admin only.
 const superAdminOnly = authorize(ROLES.SUPER_ADMIN);

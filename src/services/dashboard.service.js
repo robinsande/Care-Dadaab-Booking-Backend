@@ -1,4 +1,4 @@
-const { Booking, Room, Invoice, Camp } = require('../models');
+const { Booking, Room, Invoice, Camp, GuestRequest } = require('../models');
 const {
   BOOKING_STATUS,
   ACTIVE_BOOKING_STATUSES,
@@ -45,6 +45,7 @@ const getDashboard = async () => {
       camps,
       roomStatusRows,
       bookingsByCamp,
+      pendingGuestRequests,
     ] = await Promise.all([
       Booking.countDocuments({
         status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN] },
@@ -83,6 +84,13 @@ const getDashboard = async () => {
         { $group: { _id: '$campName', count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
+      GuestRequest.find({ type: 'booking', status: 'pending' })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .populate('guest', 'firstName lastName email')
+        .populate('camp', 'name')
+        .select('guest camp arrivalDate departureDate stayType reason createdAt')
+        .lean(),
     ]);
 
     const bookedRoomCount = new Set(bookedRooms.map(String)).size;
@@ -103,6 +111,7 @@ const getDashboard = async () => {
         campName: row._id,
         count: row.count,
       })),
+        pendingGuestRequests,
       camps: camps.map((c) => ({ id: c._id, name: c.name })),
       roomStatuses: roomStatusRows.map((room) => ({
         campName: room.camp?.name || '—',

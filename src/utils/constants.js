@@ -6,6 +6,7 @@
 const ROLES = Object.freeze({
   ACCOMMODATION_OFFICER: 'Accommodation Officer',
   SUPER_ADMIN: 'Super Admin',
+  SYSTEM_VIEWER: 'System Viewer',
 });
 
 const ROLE_VALUES = Object.freeze(Object.values(ROLES));

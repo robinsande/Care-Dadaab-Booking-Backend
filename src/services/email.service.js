@@ -1,6 +1,9 @@
 const nodemailer = require('nodemailer');
+const { User } = require('../models');
 const env = require('../config/env');
 const logger = require('../utils/logger');
+
+const adminPanelUrl = String(env.adminPanelUrl || '/').replace(/\/admin\/bookings\.html(?:\?.*)?$/, '/');
 
 let transporter = null;
 
@@ -43,6 +46,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
         },
         body: JSON.stringify({
           sender: { name: env.emailFrom.name, email: env.emailFrom.address },
+          replyTo: env.emailReplyTo ? { email: env.emailReplyTo } : undefined,
           to: recipients.map((email) => ({ email })),
           subject,
           htmlContent: html,
@@ -72,7 +76,14 @@ const sendEmail = async ({ to, subject, html, text }) => {
   }
 
   try {
-    await activeTransporter.sendMail({ from, to, subject, html, text });
+    await activeTransporter.sendMail({
+      from,
+      replyTo: env.emailReplyTo || undefined,
+      to,
+      subject,
+      html,
+      text,
+    });
     logger.info(`Email sent to ${to} | Subject: ${subject}`);
     return true;
   } catch (error) {
@@ -93,7 +104,7 @@ const layout = (title, bodyHtml) => `
       <p style="font-size:12px; color:#6b7280;">
         Need help? Contact us at ${env.support.email}${env.support.phone ? ` or ${env.support.phone}` : ''}.
       </p>
-      <p style="font-size:12px;"><a href="${env.adminPanelUrl}">Open booking panel</a></p>
+      <p style="font-size:12px;"><a href="${adminPanelUrl}">Open booking panel</a></p>
     </div>
   </div>
 `;
@@ -115,7 +126,7 @@ const sendBookingCreated = (booking, recipients = booking.guest.email) => {
     <p style="background:#fef3c7; padding:12px; border-radius:6px;">
       <strong>Please save this Booking Reference</strong> for your records and when contacting CARE.
     </p>
-    <p><a href="${env.adminPanelUrl}">Open the booking panel</a></p>
+    <p><a href="${adminPanelUrl}">Open the booking panel</a></p>
   `;
   return sendEmail({
     to: recipients,
@@ -134,7 +145,7 @@ const sendBookingCreated = (booking, recipients = booking.guest.email) => {
       `Status: ${booking.status}`,
       '',
       'Please save this Booking Reference for your records and when contacting CARE.',
-      `Booking panel: ${env.adminPanelUrl}`,
+      `Booking panel: ${adminPanelUrl}`,
     ].join('\n'),
   });
 };
@@ -366,6 +377,12 @@ const sendBookingReminder = (booking, type, invoice = null) => {
 };
 
 const sendInvoiceGenerated = async (booking, invoice, officer) => {
+    const superAdmins = await User.find({ isActive: true, role: 'Super Admin' }).select('email').lean();
+    const recipients = [...new Set([
+      booking.guest.email,
+      officer && officer.email,
+      ...superAdmins.map((user) => user.email),
+    ].filter(Boolean))];
   const payment = invoice.paymentInstructions || {};
   const body = `
     <p>Dear ${invoice.guest.firstName},</p>
@@ -389,7 +406,6 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
   const html = layout('Invoice', body);
   const subject = `Invoice ${invoice.invoiceNumber} - ${invoice.bookingReference}`;
 
-  const recipients = [booking.guest.email, officer && officer.email].filter(Boolean);
   const results = await Promise.all(recipients.map((to) => sendEmail({ to, subject, html })));
   return results.every(Boolean);
 };
@@ -455,14 +471,14 @@ const sendGuestRequestNotification = (request, guest, recipients = []) => {
     ${request.booking?.appliedRate ? detailRow('Room rate', `${request.booking.appliedRate.currency} ${request.booking.appliedRate.amount} per night`) : ''}
     ${request.reason ? detailRow('Reason', request.reason) : ''}
     <p>Staff will review the request and contact you with any further details.</p>
-    <p><a href="${env.adminPanelUrl}">Open the booking panel</a></p>
+    <p><a href="${adminPanelUrl}">Open the booking panel</a></p>
   `;
   const to = [...new Set([guest?.email, request.guest?.email, ...recipients].filter(Boolean))];
   return sendEmail({
     to,
     subject: `Guest ${request.type} request - ${reference}`,
     html: layout('Guest Request Update', body),
-    text: `Your ${request.type} request for ${reference} is ${request.status || 'submitted'}.\nBooking panel: ${env.adminPanelUrl}`,
+    text: `Your ${request.type} request for ${reference} is ${request.status || 'submitted'}.\nBooking panel: ${adminPanelUrl}`,
   });
 };
 
