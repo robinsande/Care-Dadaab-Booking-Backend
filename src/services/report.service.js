@@ -19,10 +19,13 @@ const dashboardService = require('./dashboard.service');
 
 const buildDateFilter = (query, field = 'arrivalDate') => {
   const filter = {};
-  if (query.from || query.to) {
+  const year = /^\d{4}$/.test(String(query.year || '')) ? Number(query.year) : null;
+  if (query.from || query.to || year) {
     filter[field] = {};
     if (query.from) filter[field].$gte = startOfDay(query.from);
+    else if (year) filter[field].$gte = startOfDay(`${year}-01-01`);
     if (query.to) filter[field].$lte = endOfDay(query.to);
+    else if (year) filter[field].$lte = endOfDay(`${year}-12-31`);
   }
   return filter;
 };
@@ -375,12 +378,13 @@ const reportMouRevenue = async (query) => {
     status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN, BOOKING_STATUS.CHECKED_OUT] },
     ...buildDateFilter(query, 'arrivalDate'),
   };
-  if (query.counterpartyCategory) {
-    const mous = await Mou.find({ counterpartyCategory: query.counterpartyCategory }).select('_id').lean();
+  if (query.counterpartyCategory || query.revenueCategory) {
+    const mous = await Mou.find({ counterpartyCategory: query.counterpartyCategory || query.revenueCategory }).select('_id').lean();
     filter.mou = { $in: mous.map((mou) => mou._id) };
     if (query.mouId) filter.mou = query.mouId;
   }
   if (query.bookingReference) filter.bookingReference = String(query.bookingReference).trim();
+  if (query.guestCategory) filter['guest.contractType'] = String(query.guestCategory).trim();
 
   const bookings = await Booking.find(filter)
     .sort({ arrivalDate: 1, createdAt: 1 })
@@ -445,7 +449,7 @@ const reportMouRevenue = async (query) => {
       totalRevenue: rows.reduce((sum, row) => sum + row.amountAccumulated, 0),
       totalBookings: rows.length,
       totalPeople: personTotals.length,
-      period: query.from || query.to ? `${query.from || 'Beginning'} to ${query.to || 'Today'}` : 'All selected dates',
+      period: query.year ? String(query.year) : query.from || query.to ? `${query.from || 'Beginning'} to ${query.to || 'Today'}` : 'All selected dates',
       personTotals,
     },
     rows,
@@ -665,6 +669,7 @@ const MOU_REVENUE_COLUMNS = [
   { key: 'checkInDate', label: 'Check-in Date', width: 15 },
   { key: 'departureDate', label: 'Departure Date', width: 15 },
   { key: 'unitPrice', label: 'Unit Price', width: 19 },
+  { key: 'amountAccumulated', label: 'Total Revenue', width: 17 },
   { key: 'rooms', label: 'Rooms', width: 9 },
   { key: 'numberOfDays', label: 'No. of Days', width: 12 },
   { key: 'typeOfRoom', label: 'Stay Type', width: 15 },
@@ -853,7 +858,7 @@ const flattenRowsToPdfBuffer = (report) =>
     if (isRevenueFormReport(report)) {
       const groups = groupMouRevenueRows(rows);
       const printableGroups = groups.length ? groups : [{ name: 'No MOU selected', rows: [], total: 0 }];
-      const columnWidths = [34, 74, 62, 62, 62, 40, 48, 60, 73];
+      const columnWidths = [32, 64, 54, 54, 54, 48, 36, 44, 54, 75];
       const labels = MOU_REVENUE_COLUMNS.map((column) => column.label);
       const shortStay = report.title === 'Short Stay Revenue';
       const tableLeft = 40;
