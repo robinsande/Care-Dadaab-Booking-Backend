@@ -255,10 +255,11 @@ const reportReservationLog = async (query) => {
   if (query.campId) filter.camp = query.campId;
   if (query.stayType) filter.stayType = query.stayType;
   if (query.bookingReference) filter.bookingReference = String(query.bookingReference).trim();
-  if (query.counterpartyCategory) {
-    const mous = await Mou.find({ counterpartyCategory: query.counterpartyCategory }).select('_id').lean();
+  if (query.counterpartyCategory || query.revenueCategory) {
+    const mous = await Mou.find({ counterpartyCategory: query.counterpartyCategory || query.revenueCategory }).select('_id').lean();
     filter.mou = { $in: mous.map((mou) => mou._id) };
   }
+  if (query.guestCategory) filter['guest.contractType'] = String(query.guestCategory).trim();
   if (query.mouId) filter.mou = query.mouId;
 
   const bookings = await Booking.find(filter)
