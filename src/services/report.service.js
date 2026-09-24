@@ -602,6 +602,25 @@ const RESERVATION_COLUMNS = [
   { key: 'remark', label: 'Remark / Occupant / MOU', width: 34 },
 ];
 
+const toReservationFormRow = (row) => {
+  const value = (...keys) => keys.map((key) => row[key]).find((item) => item !== undefined && item !== null && item !== '');
+  const reservedKeys = new Set(['bookingReference', 'reference', 'room', 'roomType', 'roomNumber', 'camp', 'campName', 'checkIn', 'checkInDate', 'arrivalDate', 'checkOut', 'departureDate', 'departureDate', 'rate', 'unitPrice', 'amountAccumulated', 'totalRevenue', 'totalAmount', 'rooms', 'days', 'numberOfDays', 'stayType', 'typeOfRoom', 'remark']);
+  const categories = Object.entries(row)
+    .filter(([key, item]) => !reservedKeys.has(key) && item !== undefined && item !== null && item !== '')
+    .map(([key, item]) => `${displayHeader(key)}: ${displayValue(item)}`);
+  return {
+    bookingReference: value('bookingReference', 'reference') || '',
+    roomType: value('roomType', 'room', 'roomNumber', 'campName', 'camp') || '',
+    checkInDate: value('checkInDate', 'checkIn', 'arrivalDate', 'date') || '',
+    departureDate: value('departureDate', 'checkOut', 'departure') || '',
+    unitPrice: value('unitPrice', 'rate') || '',
+    rooms: value('rooms') || '',
+    numberOfDays: value('numberOfDays', 'days', 'nights') || '',
+    typeOfRoom: value('typeOfRoom', 'stayType', 'category') || '',
+    remark: [value('remark'), ...categories].filter(Boolean).join(' | '),
+  };
+};
+
 const flattenReservationLogToXlsxBuffer = async (rows, logoPath, report) => {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Reservation Log');
@@ -765,8 +784,8 @@ const flattenRowsToXlsxBuffer = async (report) => {
     return flattenReservationLogToXlsxBuffer(rows, logoPath, report);
   }
 
-  const reportColumnCount = rows.length ? Object.keys(rows[0]).length : 1;
-  const reportEndColumn = String.fromCharCode(64 + Math.max(Math.min(reportColumnCount, 26), 5));
+  const formRows = rows.map(toReservationFormRow);
+  const reportEndColumn = String.fromCharCode(64 + RESERVATION_COLUMNS.length);
   worksheet.mergeCells(`A1:${reportEndColumn}1`);
   worksheet.getCell('A1').value = 'ROOM RESERVATION FORM 1';
   worksheet.getCell('A1').font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
@@ -800,11 +819,11 @@ const flattenRowsToXlsxBuffer = async (report) => {
     worksheet.addImage(imageId, { tl: { col: 6.4, row: 0.2 }, ext: { width: 110, height: 42 } });
   }
 
-  if (!rows.length) {
-    worksheet.getCell('A7').value = 'No data';
-  } else {
-    const headers = Object.keys(rows[0]);
-    worksheet.getRow(7).values = headers.map(displayHeader);
+  const printableRows = [...formRows];
+  while (printableRows.length < 20) printableRows.push({});
+  {
+    const headers = RESERVATION_COLUMNS.map((column) => column.key);
+    worksheet.getRow(7).values = RESERVATION_COLUMNS.map((column) => column.label);
     worksheet.getRow(7).font = { bold: true, color: { argb: 'FFFFFFFF' } };
     worksheet.getRow(7).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF173B63' } };
     worksheet.getRow(7).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -812,7 +831,7 @@ const flattenRowsToXlsxBuffer = async (report) => {
     worksheet.getRow(7).eachCell((cell) => {
       cell.border = { top: { style: 'thin', color: { argb: 'FF7F1D1D' } }, bottom: { style: 'thin', color: { argb: 'FF7F1D1D' } }, left: { style: 'thin', color: { argb: 'FFD1D5DB' } }, right: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
     });
-    rows.forEach((row) => {
+    printableRows.forEach((row) => {
       worksheet.addRow(headers.map((header) => {
         return displayValue(row[header]);
       }));
@@ -831,10 +850,10 @@ const flattenRowsToXlsxBuffer = async (report) => {
       });
       column.width = width;
     });
-    worksheet.autoFilter = { from: 'A7', to: `${String.fromCharCode(64 + headers.length)}${rows.length + 7}` };
+    worksheet.autoFilter = { from: 'A7', to: `${reportEndColumn}${printableRows.length + 7}` };
   }
 
-  const footerRow = rows.length + 8;
+  const footerRow = Math.max(printableRows.length, 20) + 8;
   worksheet.mergeCells(`A${footerRow}:${reportEndColumn}${footerRow}`);
   worksheet.getCell(`A${footerRow}`).value = 'Remark:';
   worksheet.mergeCells(`A${footerRow + 1}:${reportEndColumn}${footerRow + 1}`);
@@ -965,19 +984,12 @@ const flattenRowsToPdfBuffer = (report) =>
     doc.text('Payment method: MOU / invoice according to the selected booking agreement', 40, 123);
     doc.fillColor('#374151').font('Helvetica-Oblique').fontSize(8).text(`Revenue Calculation: ${reportSummaryText(report.summary) || 'No revenue data'}`, 40, 134, { width: 515 });
 
-    if (rows.length === 0) {
-      doc.fontSize(12).text('No data', 40, 155);
-      doc.font('Helvetica-Bold').fontSize(10).text('Remark:', 40, 190);
-      doc.font('Helvetica').fontSize(8).text('Hotel confirmation by: ____________________    Confirmation date: ____________________', 40, 232);
-      doc.end();
-      return;
-    }
-
-    const headers = Object.keys(rows[0]);
+    const formRows = rows.map(toReservationFormRow);
+    const headers = RESERVATION_COLUMNS.map((column) => column.key);
     const tableTop = 152;
     const tableLeft = 40;
     const tableWidth = 515;
-    const columnWidth = tableWidth / headers.length;
+    const columnWidth = tableWidth / RESERVATION_COLUMNS.length;
     const headerHeight = 28;
     const rowHeight = 28;
 
@@ -991,17 +1003,19 @@ const flattenRowsToPdfBuffer = (report) =>
       });
     };
 
-    headers.forEach((header, index) => {
-      drawCell(tableLeft + index * columnWidth, tableTop, columnWidth, headerHeight, '#173B63', displayHeader(header), '#ffffff', true);
+    RESERVATION_COLUMNS.forEach((column, index) => {
+      drawCell(tableLeft + index * columnWidth, tableTop, columnWidth, headerHeight, '#173B63', column.label, '#ffffff', true);
     });
 
     let currentY = tableTop + headerHeight;
-    rows.forEach((row, rowIndex) => {
+    const printableRows = [...formRows];
+    while (printableRows.length < 20) printableRows.push({});
+    printableRows.forEach((row, rowIndex) => {
       if (currentY + rowHeight > doc.page.height - 45) {
         doc.addPage();
         doc.fillColor('#173B63').fontSize(14).font('Helvetica-Bold').text(`${report.title || 'Report'} (continued)`, 40, 40);
-        headers.forEach((header, index) => {
-          drawCell(tableLeft + index * columnWidth, 75, columnWidth, headerHeight, '#173B63', displayHeader(header), '#ffffff', true);
+        RESERVATION_COLUMNS.forEach((column, index) => {
+          drawCell(tableLeft + index * columnWidth, 75, columnWidth, headerHeight, '#173B63', column.label, '#ffffff', true);
         });
         currentY = 75 + headerHeight;
       }
