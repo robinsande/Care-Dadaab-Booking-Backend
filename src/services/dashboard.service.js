@@ -84,12 +84,12 @@ const getDashboard = async () => {
         { $group: { _id: '$campName', count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
-      GuestRequest.find({ type: 'booking', status: 'pending' })
-        .sort({ createdAt: -1 })
-        .limit(10)
+      GuestRequest.find({ type: 'booking' })
+        .sort({ status: 1, createdAt: -1 })
+        .limit(50)
         .populate('guest', 'firstName lastName email')
         .populate('camp', 'name')
-        .select('guest camp arrivalDate departureDate stayType reason createdAt')
+        .select('guest camp arrivalDate departureDate stayType reason status createdAt')
         .lean(),
     ]);
 
