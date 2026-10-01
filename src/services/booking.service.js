@@ -228,7 +228,13 @@ const createBooking = async (payload, actor) => {
         ? emailService.sendWaivedBookingConfirmation(booking, recipients)
       : emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients);
     confirmation
-      .then(() => recordEmailSent(booking, booking.billingType === 'intercompany' ? 'Intercompany Booking Confirmation' : booking.billingType === 'waived' ? 'Waived Booking Confirmation' : 'Booking Confirmation and Invoice'))
+      .then((sent) => {
+        if (!sent) {
+          logger.warn(`Booking confirmation delivery incomplete for ${booking.bookingReference}. Check recipient-specific email logs.`);
+          return null;
+        }
+        return recordEmailSent(booking, booking.billingType === 'intercompany' ? 'Intercompany Booking Confirmation' : booking.billingType === 'waived' ? 'Waived Booking Confirmation' : 'Booking Confirmation and Invoice');
+      })
       .catch((error) => {
         logger.warn(`Booking confirmation email failed: ${error.message}`);
       });

@@ -37,7 +37,18 @@ const formatDate = (date) =>
 
 const sendEmail = async ({ to, subject, html, text }) => {
   const from = `"${env.emailFrom.name}" <${env.emailFrom.address}>`;
-  const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
+  const recipients = [...new Set((Array.isArray(to) ? to : [to]).filter(Boolean))];
+  if (!recipients.length) {
+    logger.warn(`Email not sent because it has no recipients. Subject: ${subject}`);
+    return false;
+  }
+  if (recipients.length > 1) {
+    const results = await Promise.all(
+      recipients.map((recipient) => sendEmail({ to: recipient, subject, html, text }))
+    );
+    return results.every(Boolean);
+  }
+  const recipient = recipients[0];
 
   if (env.brevoApiKey) {
     try {
@@ -51,7 +62,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
         body: JSON.stringify({
           sender: { name: env.emailFrom.name, email: env.emailFrom.address },
           replyTo: env.emailReplyTo ? { email: env.emailReplyTo } : undefined,
-          to: recipients.map((email) => ({ email })),
+          to: [{ email: recipient }],
           subject,
           htmlContent: html,
           textContent: text,
@@ -64,10 +75,10 @@ const sendEmail = async ({ to, subject, html, text }) => {
         throw new Error(`Brevo API ${response.status}: ${errorBody.slice(0, 300)}`);
       }
 
-      logger.info(`Email sent via Brevo API to ${recipients.join(', ')} | Subject: ${subject}`);
+      logger.info(`Email sent via Brevo API to ${recipient} | Subject: ${subject}`);
       return true;
     } catch (error) {
-      logger.error(`Failed to send email via Brevo API to ${recipients.join(', ')}: ${error.message}`);
+      logger.error(`Failed to send email via Brevo API to ${recipient}: ${error.message}`);
       return false;
     }
   }
@@ -75,7 +86,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
   const activeTransporter = getTransporter();
 
   if (!activeTransporter) {
-    logger.warn(`SMTP not configured. Email not sent. To: ${to} | Subject: ${subject}`);
+    logger.warn(`SMTP not configured. Email not sent. To: ${recipient} | Subject: ${subject}`);
     return false;
   }
 
@@ -83,15 +94,15 @@ const sendEmail = async ({ to, subject, html, text }) => {
     await activeTransporter.sendMail({
       from,
       replyTo: env.emailReplyTo || undefined,
-      to,
+      to: recipient,
       subject,
       html,
       text,
     });
-    logger.info(`Email sent to ${to} | Subject: ${subject}`);
+    logger.info(`Email sent to ${recipient} | Subject: ${subject}`);
     return true;
   } catch (error) {
-    logger.error(`Failed to send email to ${to}: ${error.message}`);
+    logger.error(`Failed to send email to ${recipient}: ${error.message}`);
     return false;
   }
 };
