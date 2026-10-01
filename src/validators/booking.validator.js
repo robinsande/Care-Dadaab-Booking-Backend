@@ -25,7 +25,7 @@ const guestFieldRules = [
     const origin = String(req.body.departureCountry || '').trim().toLowerCase();
     const needsOffice = req.body.contractType === 'CARE Staff'
       && ['kenya', 'kenyan', 'local (kenyan)'].includes(origin);
-    if (needsOffice && !['Nakuru', 'Nairobi', 'Kisumu', 'Regional Office'].includes(value)) {
+    if (needsOffice && !['Nakuru', 'Nairobi', 'Garissa', 'Kisumu', 'Regional Office'].includes(value)) {
       throw new Error('Select a valid Kenya office for CARE Staff.');
     }
     return true;
@@ -109,7 +109,7 @@ const updateBookingRules = [
     const origin = String(req.body.departureCountry || '').trim().toLowerCase();
     const needsOffice = req.body.contractType === 'CARE Staff'
       && ['kenya', 'kenyan', 'local (kenyan)'].includes(origin);
-    if (needsOffice && !['Nakuru', 'Nairobi', 'Kisumu', 'Regional Office'].includes(value)) {
+    if (needsOffice && !['Nakuru', 'Nairobi', 'Garissa', 'Kisumu', 'Regional Office'].includes(value)) {
       throw new Error('Select a valid Kenya office for CARE Staff.');
     }
     return true;
