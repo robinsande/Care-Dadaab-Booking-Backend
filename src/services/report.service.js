@@ -13,7 +13,7 @@ const {
   BOOKING_STATUS,
   ROOM_STATUS,
 } = require('../utils/constants');
-const { startOfDay, endOfDay } = require('../utils/dates');
+const { startOfDay, endOfDay, calculateBillableMonths } = require('../utils/dates');
 const { normalizeReportFormat } = require('../utils/reportExport');
 const dashboardService = require('./dashboard.service');
 
@@ -376,7 +376,9 @@ const calculateBookingRevenue = (booking) => {
   const rate = Number(booking.appliedRate?.amount || 0);
   const nights = Number(booking.durationNights || 0);
   if (booking.stayType === 'Long Stay' || booking.appliedRate?.ratePeriod === 'per_month') {
-    return rate * Number(booking.durationMonths || Math.ceil(nights / 30));
+    const months = calculateBillableMonths(booking.arrivalDate, booking.departureDate)
+      || Number(booking.durationMonths || Math.ceil(nights / 30));
+    return rate * months;
   }
   if (booking.appliedRate?.ratePeriod === 'per_year') {
     return rate * Math.ceil(nights / 365);

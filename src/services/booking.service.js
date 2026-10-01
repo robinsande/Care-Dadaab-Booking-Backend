@@ -11,7 +11,7 @@ const settingsService = require('./settings.service');
 const auditService = require('./audit.service');
 const logger = require('../utils/logger');
 const env = require('../config/env');
-const { calculateNights } = require('../utils/dates');
+const { calculateNights, calculateBillableMonths } = require('../utils/dates');
 const mouService = require('./mou.service');
 const {
   BOOKING_STATUS,
@@ -186,7 +186,9 @@ const createBooking = async (payload, actor) => {
     stayType: payload.stayType,
     mou: mou?._id || null,
     durationNights,
-    durationMonths: payload.stayType === 'Long Stay' ? Math.ceil(durationNights / 30) : null,
+    durationMonths: payload.stayType === 'Long Stay'
+      ? calculateBillableMonths(payload.arrivalDate, payload.departureDate)
+      : null,
     appliedRate,
     createdBy: actor._id,
     guestAccount: payload.guestAccountId || null,
@@ -460,7 +462,7 @@ const updateBooking = async (bookingId, payload, actor) => {
           ? await mouService.getActiveForBooking(mouId, booking.guest.toObject ? booking.guest.toObject() : booking.guest)
           : null;
         booking.mou = mou?._id || null;
-        booking.durationMonths = Math.ceil(durationNights / 30);
+        booking.durationMonths = calculateBillableMonths(arrivalDate, departureDate);
         if (mou && (new Date(arrivalDate) < mou.startDate || new Date(departureDate) > mou.endDate)) {
           throw ApiError.badRequest('The booking dates must fall within the active MOU term.');
         }
@@ -606,7 +608,7 @@ const extendStay = async (bookingId, { newDepartureDate, reason, additionalCost 
   if (!trimmedReason) throw ApiError.badRequest('An extension reason is required.');
   const extensionNights = calculateNights(booking.departureDate, newDeparture);
   const cost = booking.stayType === 'Long Stay'
-    ? booking.appliedRate.amount * Math.ceil(extensionNights / 30)
+    ? booking.appliedRate.amount * calculateBillableMonths(booking.departureDate, newDeparture)
     : booking.appliedRate.amount * extensionNights;
 
   await roomService.assertRoomAssignable({
@@ -629,7 +631,7 @@ const extendStay = async (bookingId, { newDepartureDate, reason, additionalCost 
   booking.departureDate = newDeparture;
   booking.durationNights = calculateNights(booking.arrivalDate, newDeparture);
   if (booking.stayType === 'Long Stay') {
-    booking.durationMonths = Math.ceil(booking.durationNights / 30);
+    booking.durationMonths = calculateBillableMonths(booking.arrivalDate, newDeparture);
   }
   booking.extensions = booking.extensions || [];
   booking.extensions.push(extension);

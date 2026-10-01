@@ -13,7 +13,7 @@ const {
   INVOICE_PAYMENT_STATUS,
   INVOICE_PAYMENT_STATUS_VALUES,
 } = require('../utils/constants');
-const { calculateNights } = require('../utils/dates');
+const { calculateNights, calculateBillableMonths } = require('../utils/dates');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 
@@ -33,9 +33,10 @@ const buildInvoiceSnapshot = async (booking) => {
   const extensionCost = (booking.extensions || [])
     .reduce((total, extension) => total + Number(extension.additionalCost || 0), 0);
   const durationMonths = booking.stayType === 'Long Stay'
-    ? (booking.durationMonths || Math.ceil(numberOfNights / 30))
+    ? calculateBillableMonths(booking.arrivalDate, booking.departureDate) || booking.durationMonths
     : null;
-  const totalAmount = booking.appliedRate.amount * (durationMonths || numberOfNights) + extensionCost;
+  const totalAmount = booking.appliedRate.amount * (durationMonths || numberOfNights)
+    + (durationMonths ? 0 : extensionCost);
   const paymentInstructions = {
     mpesaTillNumber: settings.payment?.mpesaTillNumber || settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',

@@ -4,6 +4,7 @@ const { resolveAppliedRate } = require('../src/services/booking.service');
 const { isNonBillableCareStaff, isIntercompanyCareStaffLongStay } = require('../src/services/invoice.service');
 const { calculateBookingRevenue } = require('../src/services/report.service');
 const { buildPaymentRows, INDIVIDUAL_MONTHLY_RATE } = require('../src/services/mou.service');
+const { calculateBillableMonths } = require('../src/utils/dates');
 
 const overlaps = (arrival, departure, existingArrival, existingDeparture) =>
   new Date(arrival) < new Date(existingDeparture)
@@ -93,4 +94,22 @@ test('long stays calculate revenue by whole months even when legacy ratePeriod i
     durationMonths: 2,
     appliedRate: { amount: 4500, ratePeriod: 'per_night' },
   }), 9000);
+});
+
+test('long stays bill month-to-month and month-end dates as one calendar month', () => {
+  assert.equal(calculateBillableMonths('2026-10-01', '2026-11-01'), 1);
+  assert.equal(calculateBillableMonths('2026-10-01', '2026-10-31'), 1);
+  assert.equal(calculateBillableMonths('2026-10-01', '2026-11-02'), 2);
+  assert.equal(calculateBillableMonths('2027-01-31', '2027-02-28'), 1);
+});
+
+test('long-stay revenue recomputes calendar months for older duration snapshots', () => {
+  assert.equal(calculateBookingRevenue({
+    stayType: 'Long Stay',
+    arrivalDate: '2026-10-01',
+    departureDate: '2026-11-01',
+    durationNights: 31,
+    durationMonths: 2,
+    appliedRate: { amount: 6500, ratePeriod: 'per_month' },
+  }), 6500);
 });
