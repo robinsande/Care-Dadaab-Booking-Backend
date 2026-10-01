@@ -114,13 +114,19 @@ First Name, Last Name, Email, Phone, Organisation, Gender, Contract Type, Reason
 
 # Stay Types
 
-Short Stay and Long Stay. Selected manually by the officer at booking creation (never auto-determined).
+Short Stay (up to 21 nights) and Long Stay (22 nights or longer). Selected manually by the officer at booking creation (never auto-determined).
+
+Long Stay bookings are billed by whole months, including stays longer than 12 months.
 
 ---
 
 # Rates
 
-Per camp: one Short Stay rate and one Long Stay rate (configurable by Super Admin only).
+Per camp: one Short Stay rate per night and one Long Stay rate per month (configurable by Super Admin only).
+
+Seed defaults: CARE Dadaab Long Stay is KES 6,500 per month; CARE Hagadera and CARE Ifo are KES 4,500 per month. Short Stay remains billed nightly. CARE Staff bookings are waived and do not display rates.
+
+An MOU may be attached to a Long Stay booking for reference but does not set the accommodation rate.
 
 Rate history is supported. Each booking stores the applied rate at creation time.
 
@@ -203,7 +209,7 @@ Future: payments, notifications
 
 # Development Rules
 
-- Never hardcode rates or invent business rules
+- Apply the configured camp rate; seed defaults only initialize camp rates
 - Never delete bookings
 - Soft-deactivate camps, blocks, rooms where appropriate
 - Validate every request on the backend

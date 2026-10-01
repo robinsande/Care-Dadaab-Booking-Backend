@@ -75,7 +75,7 @@ const dateRules = [
         if (nights <= 21) throw new Error('Long Stay must be more than 21 nights.');
       } else {
         const nights = Math.ceil((departure - arrival) / (24 * 60 * 60 * 1000));
-        if (nights > 21) throw new Error('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay with an active MOU.');
+        if (nights > 21) throw new Error('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay.');
       }
       return true;
     }),

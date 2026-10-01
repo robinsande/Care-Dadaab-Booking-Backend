@@ -83,7 +83,7 @@ const createRateVersion = async (campId, data, actor) => {
     actor,
     actorLabel: actor && actor.email,
     metadata: { campId, stayType, amount: rate.amount, currency: rate.currency },
-    message: `${stayType} rate for camp set to ${rate.currency} ${rate.amount} per night.`,
+    message: `${stayType} rate for camp set to ${rate.currency} ${rate.amount} per ${stayType === 'Long Stay' ? 'month' : 'night'}.`,
   });
 
   return rate;

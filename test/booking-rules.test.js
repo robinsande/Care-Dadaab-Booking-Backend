@@ -85,3 +85,12 @@ test('CARE Staff bookings are waived but remain reportable', () => {
     durationNights: 4,
   }), 24000);
 });
+
+test('long stays calculate revenue by whole months even when legacy ratePeriod is nightly', () => {
+  assert.equal(calculateBookingRevenue({
+    stayType: 'Long Stay',
+    durationNights: 45,
+    durationMonths: 2,
+    appliedRate: { amount: 4500, ratePeriod: 'per_night' },
+  }), 9000);
+});

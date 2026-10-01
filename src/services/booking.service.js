@@ -20,10 +20,6 @@ const {
   ROLES,
 } = require('../utils/constants');
 
-const isCareStaffLongStay = (payload) =>
-  payload.stayType === 'Long Stay'
-  && /^(?:care\s*)?staff$/i.test(String(payload.contractType || '').trim());
-
 const isCareStaff = (payload) =>
   /^(?:care\s*)?staff$/i.test(String(payload.contractType || '').trim());
 
@@ -116,6 +112,7 @@ const snapshotRate = async (campId, stayType, rateId) => {
     amount: rate.amount,
     currency: rate.currency,
     stayType: rate.stayType,
+    ratePeriod: stayType === 'Long Stay' ? 'per_month' : 'per_night',
   };
 };
 
@@ -148,24 +145,21 @@ const createBooking = async (payload, actor) => {
 
   const durationNights = calculateNights(payload.arrivalDate, payload.departureDate);
   if (payload.stayType === 'Short Stay' && durationNights > 21) {
-    throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay with an active MOU.');
+    throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay.');
   }
   let mou = null;
   let appliedRate;
   if (payload.stayType === 'Long Stay') {
     if (durationNights <= 21) throw ApiError.badRequest('Long Stay must be more than 21 nights.');
-    if (!payload.mouId) throw ApiError.badRequest('An active MOU is required for Long Stay bookings.');
-    mou = await mouService.getActiveForBooking(payload.mouId, payload);
-    appliedRate = {
-      rateId: null,
-      amount: mou.rateAmount,
-      currency: mou.rateCurrency,
-      stayType: payload.stayType,
-      ratePeriod: mou.ratePeriod,
-    };
-    if (new Date(payload.arrivalDate) < mou.startDate || new Date(payload.departureDate) > mou.endDate) {
-      throw ApiError.badRequest('The booking dates must fall within the active MOU term.');
+    if (payload.mouId) {
+      mou = await mouService.getActiveForBooking(payload.mouId, payload);
+      if (new Date(payload.arrivalDate) < mou.startDate || new Date(payload.departureDate) > mou.endDate) {
+        throw ApiError.badRequest('The booking dates must fall within the active MOU term.');
+      }
     }
+    appliedRate = isCareStaff(payload)
+      ? { rateId: null, amount: 0, currency: 'KES', stayType: payload.stayType, ratePeriod: 'per_month' }
+      : await snapshotRate(camp._id, payload.stayType, payload.rateId);
   } else {
     appliedRate = isCareStaff(payload)
       ? { rateId: null, amount: 0, currency: 'KES', stayType: payload.stayType, ratePeriod: 'per_night' }
@@ -433,7 +427,7 @@ const updateBooking = async (bookingId, payload, actor) => {
       const durationNights = calculateNights(arrivalDate, departureDate);
 
       if (stayType === 'Short Stay' && durationNights > 21) {
-        throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay with an active MOU.');
+        throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this booking to Long Stay.');
       }
 
       const { camp, block, room } = await resolveLocation({ campId, blockId, roomId });
@@ -461,13 +455,18 @@ const updateBooking = async (bookingId, payload, actor) => {
       }
       if (stayType === 'Long Stay') {
         if (durationNights <= 21) throw ApiError.badRequest('Long Stay must be more than 21 nights.');
-        const mou = await mouService.getActiveById(payload.mouId || booking.mou);
-        booking.mou = mou._id;
+        const mouId = payload.mouId !== undefined ? payload.mouId : booking.mou;
+        const mou = mouId && !isCareStaff(booking.guest)
+          ? await mouService.getActiveForBooking(mouId, booking.guest.toObject ? booking.guest.toObject() : booking.guest)
+          : null;
+        booking.mou = mou?._id || null;
         booking.durationMonths = Math.ceil(durationNights / 30);
-        if (new Date(arrivalDate) < mou.startDate || new Date(departureDate) > mou.endDate) {
+        if (mou && (new Date(arrivalDate) < mou.startDate || new Date(departureDate) > mou.endDate)) {
           throw ApiError.badRequest('The booking dates must fall within the active MOU term.');
         }
-        booking.appliedRate = { rateId: null, amount: mou.rateAmount, currency: mou.rateCurrency, stayType, ratePeriod: mou.ratePeriod };
+        booking.appliedRate = isCareStaff(booking.guest)
+          ? { rateId: null, amount: 0, currency: booking.appliedRate?.currency || 'KES', stayType, ratePeriod: 'per_month' }
+          : await snapshotRate(camp._id, stayType, payload.rateId);
       } else {
         booking.mou = null;
         booking.durationMonths = null;
@@ -481,6 +480,16 @@ const updateBooking = async (bookingId, payload, actor) => {
           fallbackRate: booking.appliedRate,
           rateId: payload.rateId,
         });
+      }
+      if (isCareStaff(booking.guest)) {
+        booking.appliedRate = {
+          rateId: null,
+          amount: 0,
+          currency: booking.appliedRate?.currency || 'KES',
+          stayType,
+          ratePeriod: stayType === 'Long Stay' ? 'per_month' : 'per_night',
+        };
+        booking.mou = null;
       }
     }
 

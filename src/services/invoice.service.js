@@ -32,13 +32,10 @@ const buildInvoiceSnapshot = async (booking) => {
   const numberOfNights = calculateNights(booking.arrivalDate, booking.departureDate);
   const extensionCost = (booking.extensions || [])
     .reduce((total, extension) => total + Number(extension.additionalCost || 0), 0);
-  const durationMonths = booking.stayType === 'Long Stay' && booking.appliedRate.ratePeriod === 'per_month'
+  const durationMonths = booking.stayType === 'Long Stay'
     ? (booking.durationMonths || Math.ceil(numberOfNights / 30))
     : null;
-  const durationYears = booking.stayType === 'Long Stay' && booking.appliedRate.ratePeriod === 'per_year'
-    ? Math.ceil(numberOfNights / 365)
-    : null;
-  const totalAmount = booking.appliedRate.amount * (durationMonths || durationYears || numberOfNights) + extensionCost;
+  const totalAmount = booking.appliedRate.amount * (durationMonths || numberOfNights) + extensionCost;
   const paymentInstructions = {
     mpesaTillNumber: settings.payment?.mpesaTillNumber || settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
@@ -66,7 +63,7 @@ const buildInvoiceSnapshot = async (booking) => {
       amount: booking.appliedRate.amount,
       currency: booking.appliedRate.currency,
       stayType: booking.appliedRate.stayType,
-      ratePeriod: booking.appliedRate.ratePeriod,
+      ratePeriod: booking.stayType === 'Long Stay' ? 'per_month' : 'per_night',
     },
     totalAmount,
     paymentInstructions,
@@ -313,7 +310,7 @@ const generateInvoicePdfBuffer = (invoice) =>
     const currency = invoice.appliedRate?.currency || 'KES';
     doc.fontSize(13).text('Charges', { underline: true });
     doc.fontSize(11);
-    doc.text(`Rate: ${formatMoney(invoice.appliedRate?.amount, currency)} per night`);
+    doc.text(`Rate: ${formatMoney(invoice.appliedRate?.amount, currency)} per ${invoice.appliedRate?.ratePeriod === 'per_month' ? 'month' : 'night'}`);
     doc.text(`Total: ${formatMoney(invoice.totalAmount, currency)}`);
     doc.moveDown();
 

@@ -165,7 +165,7 @@ const sendBookingConfirmationWithInvoice = (booking, invoice, recipients = booki
     ${detailRow('Arrival Date', formatDate(booking.arrivalDate))}
     ${detailRow('Departure Date', formatDate(booking.departureDate))}
     ${detailRow('Invoice Number', invoice?.invoiceNumber || 'Pending')}
-    ${invoice ? detailRow('Rate', `${invoice.appliedRate.currency} ${invoice.appliedRate.amount} per night`) : ''}
+    ${invoice ? detailRow('Rate', `${invoice.appliedRate.currency} ${invoice.appliedRate.amount} per ${invoice.appliedRate.ratePeriod === 'per_month' ? 'month' : 'night'}`) : ''}
     ${invoice ? detailRow('Total Amount', `${invoice.appliedRate.currency} ${invoice.totalAmount}`) : ''}
     ${payment.mpesaTillNumber || payment.mpesaPaybillNumber ? detailRow('M-Pesa Till', payment.mpesaTillNumber || payment.mpesaPaybillNumber) : ''}
   `;
@@ -399,7 +399,7 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
     ${detailRow('Departure Date', formatDate(invoice.departureDate))}
     ${detailRow('Number of Nights', invoice.numberOfNights)}
     ${detailRow('Stay Type', invoice.stayType)}
-    ${detailRow('Rate', `${invoice.appliedRate.currency} ${invoice.appliedRate.amount} per night`)}
+    ${detailRow('Rate', `${invoice.appliedRate.currency} ${invoice.appliedRate.amount} per ${invoice.appliedRate.ratePeriod === 'per_month' ? 'month' : 'night'}`)}
     ${detailRow('Total Amount', `${invoice.appliedRate.currency} ${invoice.totalAmount}`)}
     <h4>Payment Instructions</h4>
     ${payment.mpesaTillNumber || payment.mpesaPaybillNumber ? detailRow('M-Pesa Till', payment.mpesaTillNumber || payment.mpesaPaybillNumber) : ''}
@@ -472,7 +472,7 @@ const sendGuestRequestNotification = (request, guest, recipients = []) => {
     <p>Your guest portal request has been <strong>${request.status || 'submitted'}</strong>.</p>
     ${detailRow('Request Type', request.type)}
     ${detailRow('Booking', reference)}
-    ${request.booking?.appliedRate ? detailRow('Room rate', `${request.booking.appliedRate.currency} ${request.booking.appliedRate.amount} per night`) : ''}
+    ${request.booking?.appliedRate ? detailRow('Room rate', `${request.booking.appliedRate.currency} ${request.booking.appliedRate.amount} per ${request.booking.appliedRate.ratePeriod === 'per_month' ? 'month' : 'night'}`) : ''}
     ${request.reason ? detailRow('Reason', request.reason) : ''}
     <p>Staff will review the request and contact you with any further details.</p>
     <p><a href="${adminPanelUrl}">Open the booking panel</a></p>

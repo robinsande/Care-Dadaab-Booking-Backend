@@ -52,10 +52,7 @@ const createBookingRequest = async (guest, payload) => {
   const stayType = payload.stayType || 'Short Stay';
   const isCareStaff = /^(?:care\s*)?staff$/i.test(String(payload.contractType || guest.contractType || '').trim());
   if (stayType === 'Short Stay' && nights > 21) {
-    throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this request to Long Stay with an active MOU.');
-  }
-  if (stayType === 'Long Stay' && !payload.mouId) {
-    throw ApiError.badRequest('An active MOU is required for Long Stay requests.');
+    throw ApiError.badRequest('Short Stay cannot exceed 21 nights. Convert this request to Long Stay.');
   }
   if (stayType === 'Long Stay' && nights <= 21) {
     throw ApiError.badRequest('Long Stay must be more than 21 nights.');
@@ -63,7 +60,7 @@ const createBookingRequest = async (guest, payload) => {
   if (stayType === 'Short Stay' && !payload.rateId && !isCareStaff) {
     throw ApiError.badRequest('Select a current short-stay room rate.');
   }
-  const mou = stayType === 'Long Stay'
+  const mou = stayType === 'Long Stay' && payload.mouId
     ? await mouService.getActiveForBooking(payload.mouId, payload)
     : null;
   if (stayType === 'Short Stay' && !isCareStaff) {

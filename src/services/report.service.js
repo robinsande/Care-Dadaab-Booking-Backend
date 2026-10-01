@@ -17,6 +17,13 @@ const { startOfDay, endOfDay } = require('../utils/dates');
 const { normalizeReportFormat } = require('../utils/reportExport');
 const dashboardService = require('./dashboard.service');
 
+const isWaivedBooking = (booking = {}) => booking.billingType === 'waived'
+  || /^(?:care\s*)?staff$/i.test(String(booking.guest?.contractType || '').trim());
+
+const bookingRatePeriod = (booking) => booking.stayType === 'Long Stay'
+  ? 'per_month'
+  : booking.appliedRate?.ratePeriod || 'per_night';
+
 const buildDateFilter = (query, field = 'arrivalDate') => {
   const filter = {};
   const year = /^\d{4}$/.test(String(query.year || '')) ? Number(query.year) : null;
@@ -264,7 +271,7 @@ const reportReservationLog = async (query) => {
 
   const bookings = await Booking.find(filter)
     .sort({ arrivalDate: 1, createdAt: 1 })
-    .select('bookingReference guest campName blockName roomNumber arrivalDate departureDate status stayType durationNights appliedRate remarks reasonForVisit mou')
+    .select('bookingReference guest billingType campName blockName roomNumber arrivalDate departureDate status stayType durationNights appliedRate remarks reasonForVisit mou')
     .populate('mou', 'partyName counterpartyCategory')
     .lean();
 
@@ -273,7 +280,7 @@ const reportReservationLog = async (query) => {
       roomType: `${booking.blockName || ''} / Room ${booking.roomNumber || ''}`.trim(),
       checkInDate: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
       departureDate: new Date(booking.departureDate).toLocaleDateString('en-GB'),
-      unitPrice: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / ${booking.appliedRate?.ratePeriod === 'per_month' ? 'month' : booking.appliedRate?.ratePeriod === 'per_year' ? 'year' : 'night'}`,
+      unitPrice: isWaivedBooking(booking) ? 'Waived' : `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / ${bookingRatePeriod(booking).replace('per_', '')}`,
       rooms: 1,
       numberOfDays: booking.durationNights || '',
       typeOfRoom: booking.stayType || '',
@@ -288,7 +295,12 @@ const reportReservationLog = async (query) => {
   return {
     title: 'Reservation Log',
     count: bookings.length,
-    summary: { totalRevenue: bookings.reduce((sum, booking) => sum + calculateBookingRevenue(booking), 0), totalBookings: bookings.length },
+    summary: {
+      totalRevenue: bookings.length && bookings.every(isWaivedBooking)
+        ? 'Waived'
+        : bookings.reduce((sum, booking) => sum + calculateBookingRevenue(booking), 0),
+      totalBookings: bookings.length,
+    },
     rows,
   };
 };
@@ -360,10 +372,10 @@ const reportMouAnnual = async (query) => {
 };
 
 const calculateBookingRevenue = (booking) => {
-  if (/^(?:care\s*)?staff$/i.test(String(booking.guest?.contractType || '').trim())) return 0;
+  if (isWaivedBooking(booking)) return 0;
   const rate = Number(booking.appliedRate?.amount || 0);
   const nights = Number(booking.durationNights || 0);
-  if (booking.appliedRate?.ratePeriod === 'per_month') {
+  if (booking.stayType === 'Long Stay' || booking.appliedRate?.ratePeriod === 'per_month') {
     return rate * Number(booking.durationMonths || Math.ceil(nights / 30));
   }
   if (booking.appliedRate?.ratePeriod === 'per_year') {
@@ -389,13 +401,15 @@ const reportMouRevenue = async (query) => {
 
   const bookings = await Booking.find(filter)
     .sort({ arrivalDate: 1, createdAt: 1 })
-    .select('bookingReference guest campName blockName roomNumber arrivalDate departureDate durationNights durationMonths appliedRate mou createdBy status')
+    .select('bookingReference guest billingType campName blockName roomNumber arrivalDate departureDate durationNights durationMonths appliedRate mou createdBy status stayType')
     .populate('mou', 'partyName counterpartyCategory')
     .populate('createdBy', 'firstName lastName email')
     .lean();
 
   const rows = bookings.map((booking) => {
     const revenue = calculateBookingRevenue(booking);
+    const waived = isWaivedBooking(booking);
+    const ratePeriod = bookingRatePeriod(booking);
     const person = `${booking.guest?.firstName || ''} ${booking.guest?.lastName || ''}`.trim();
     return {
       bookingReference: booking.bookingReference,
@@ -409,8 +423,8 @@ const reportMouRevenue = async (query) => {
       checkOut: new Date(booking.departureDate).toLocaleDateString('en-GB'),
       days: booking.durationNights || 0,
       rooms: 1,
-      rate: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / ${booking.appliedRate?.ratePeriod || 'per_night'}`,
-      amountAccumulated: revenue,
+      rate: waived ? 'Waived' : `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / ${ratePeriod}`,
+      amountAccumulated: waived ? 'Waived' : revenue,
       bookedBy: `${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || '',
       status: booking.status,
       typeOfRoom: `Long Stay - ${booking.mou?.counterpartyCategory || 'MOU'}`,
@@ -419,35 +433,39 @@ const reportMouRevenue = async (query) => {
         `Guest: ${person}`,
         booking.guest?.organisation,
         `MOU: ${booking.mou?.partyName || ''}`,
-        `Accumulated: ${revenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`,
+        `Accumulated: ${waived ? 'Waived' : revenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`,
         `Booked by: ${`${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || ''}`,
         `Status: ${booking.status}`,
       ].filter(Boolean).join(' | '),
       roomType: `${booking.campName || ''} / ${booking.blockName || ''} / Room ${booking.roomNumber || ''}`,
       checkInDate: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
       departureDate: new Date(booking.departureDate).toLocaleDateString('en-GB'),
-      unitPrice: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / ${booking.appliedRate?.ratePeriod || 'per_night'}`,
+      unitPrice: waived ? 'Waived' : `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / ${ratePeriod}`,
       numberOfDays: booking.durationNights || 0,
     };
   });
   const personTotals = [...rows.reduce((totals, row) => {
     const current = totals.get(row.person) || { person: row.person, bookings: 0, amountAccumulated: 0 };
     current.bookings += 1;
-    current.amountAccumulated += row.amountAccumulated;
+    current.amountAccumulated += Number(row.amountAccumulated) || 0;
     totals.set(row.person, current);
     return totals;
   }, new Map()).values()];
   const totalsByPerson = new Map(personTotals.map((total) => [total.person, total]));
   rows.forEach((row) => {
     row.personBookings = totalsByPerson.get(row.person)?.bookings || 0;
-    row.personTotalRevenue = totalsByPerson.get(row.person)?.amountAccumulated || 0;
-    row.remark += ` | Guest total: ${row.personTotalRevenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`;
+    row.personTotalRevenue = row.amountAccumulated === 'Waived'
+      ? 'Waived'
+      : totalsByPerson.get(row.person)?.amountAccumulated || 0;
+    row.remark += ` | Guest total: ${row.personTotalRevenue === 'Waived' ? 'Waived' : row.personTotalRevenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })}`;
   });
 
   return {
     title: query.bookingReference ? `MOU Revenue - ${String(query.bookingReference).trim()}` : 'MOU Revenue by Occupant',
     summary: {
-      totalRevenue: rows.reduce((sum, row) => sum + row.amountAccumulated, 0),
+      totalRevenue: rows.length && rows.every((row) => row.amountAccumulated === 'Waived')
+        ? 'Waived'
+        : rows.reduce((sum, row) => sum + (Number(row.amountAccumulated) || 0), 0),
       totalBookings: rows.length,
       totalPeople: personTotals.length,
       period: query.year ? String(query.year) : query.from || query.to ? `${query.from || 'Beginning'} to ${query.to || 'Today'}` : 'All selected dates',
@@ -468,11 +486,12 @@ const reportShortStayRevenue = async (query) => {
   if (query.bookingReference) filter.bookingReference = String(query.bookingReference).trim();
   const bookings = await Booking.find(filter)
     .sort({ arrivalDate: 1, createdAt: 1 })
-    .select('bookingReference guest campName blockName roomNumber arrivalDate departureDate durationNights appliedRate createdBy status remarks reasonForVisit')
+    .select('bookingReference guest billingType campName blockName roomNumber arrivalDate departureDate durationNights appliedRate createdBy status remarks reasonForVisit stayType')
     .populate('createdBy', 'firstName lastName email')
     .lean();
   const rows = bookings.map((booking, index) => {
     const revenue = calculateBookingRevenue(booking);
+    const waived = isWaivedBooking(booking);
     const person = `${booking.guest?.firstName || ''} ${booking.guest?.lastName || ''}`.trim();
     return {
       bookingReference: booking.bookingReference,
@@ -484,16 +503,16 @@ const reportShortStayRevenue = async (query) => {
       checkOut: new Date(booking.departureDate).toLocaleDateString('en-GB'),
       days: booking.durationNights || 0,
       rooms: 1,
-      rate: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / night`,
-      amountAccumulated: revenue,
+      rate: waived ? 'Waived' : `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / night`,
+      amountAccumulated: waived ? 'Waived' : revenue,
       bookedBy: `${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || '',
       status: booking.status,
       typeOfRoom: 'Short Stay',
-      remark: `Booking: ${booking.bookingReference} | Guest: ${person} | Accumulated: ${revenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })} | Booked by: ${`${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || ''}`,
+      remark: `Booking: ${booking.bookingReference} | Guest: ${person} | Accumulated: ${waived ? 'Waived' : revenue.toLocaleString('en-KE', { maximumFractionDigits: 2 })} | Booked by: ${`${booking.createdBy?.firstName || ''} ${booking.createdBy?.lastName || ''}`.trim() || booking.createdBy?.email || ''}`,
       roomType: `${booking.campName || ''} / ${booking.blockName || ''} / Room ${booking.roomNumber || ''}`,
       checkInDate: new Date(booking.arrivalDate).toLocaleDateString('en-GB'),
       departureDate: new Date(booking.departureDate).toLocaleDateString('en-GB'),
-      unitPrice: `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / night`,
+      unitPrice: waived ? 'Waived' : `${booking.appliedRate?.currency || 'KES'} ${Number(booking.appliedRate?.amount || 0).toLocaleString('en-KE')} / night`,
       numberOfDays: booking.durationNights || 0,
       tableNo: index + 1,
     };
@@ -501,7 +520,9 @@ const reportShortStayRevenue = async (query) => {
   return {
     title: 'Short Stay Revenue',
     summary: {
-      totalRevenue: rows.reduce((sum, row) => sum + row.amountAccumulated, 0),
+      totalRevenue: rows.length && rows.every((row) => row.amountAccumulated === 'Waived')
+        ? 'Waived'
+        : rows.reduce((sum, row) => sum + (Number(row.amountAccumulated) || 0), 0),
       totalBookings: rows.length,
       totalPeople: new Set(rows.map((row) => row.person)).size,
       period: query.from || query.to ? `${query.from || 'Beginning'} to ${query.to || 'Today'}` : 'All selected dates',

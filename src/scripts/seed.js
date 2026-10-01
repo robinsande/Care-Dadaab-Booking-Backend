@@ -55,7 +55,11 @@ const CAMP_DEFINITIONS = [
 
 const DEFAULT_RATES = {
   [STAY_TYPE.SHORT_STAY]: 3500,
-  [STAY_TYPE.LONG_STAY]: 2500,
+  [STAY_TYPE.LONG_STAY]: {
+    'CARE Dadaab': 6500,
+    'CARE Hagadera': 4500,
+    'CARE Ifo': 4500,
+  },
 };
 
 const seedCampsBlocksAndRooms = async () => {
@@ -111,7 +115,9 @@ const seedRates = async (campByName, superAdmin) => {
       await Rate.create({
         camp: camp._id,
         stayType,
-        amount: DEFAULT_RATES[stayType],
+        amount: stayType === STAY_TYPE.LONG_STAY
+          ? DEFAULT_RATES[stayType][camp.name]
+          : DEFAULT_RATES[stayType],
         currency: 'KES',
         effectiveFrom,
         effectiveTo: null,
