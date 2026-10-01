@@ -46,6 +46,12 @@ const resolve = asyncHandler(async (req, res) => {
     data: await service.resolve(req.params.id, req.user, req.body),
   });
 });
+const deleteStaffRequest = asyncHandler(async (req, res) => {
+  sendSuccess(res, {
+    message: 'Guest request deleted.',
+    data: await service.deleteForStaff(req.params.id),
+  });
+});
 const createPublic = asyncHandler(async (req, res) => {
   sendSuccess(res, {
     statusCode: 201,
@@ -54,4 +60,4 @@ const createPublic = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { listCamps, listCampRates, create, createPublic, createForBooking, listMine, listBookings, getInvoice, listStaff, resolve };
+module.exports = { listCamps, listCampRates, create, createPublic, createForBooking, listMine, listBookings, getInvoice, listStaff, resolve, deleteStaffRequest };

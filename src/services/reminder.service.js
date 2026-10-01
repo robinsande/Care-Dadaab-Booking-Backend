@@ -1,13 +1,28 @@
-const { Booking, Invoice, ReminderLog } = require('../models');
+const { Booking, Invoice, ReminderLog, User } = require('../models');
 const emailService = require('./email.service');
 const logger = require('../utils/logger');
-const { BOOKING_STATUS, INVOICE_PAYMENT_STATUS } = require('../utils/constants');
+const { BOOKING_STATUS, INVOICE_PAYMENT_STATUS, ROLES } = require('../utils/constants');
 const { startOfDay, endOfDay } = require('../utils/dates');
+
+const getPendingInvoiceRecipients = async (booking) => {
+  const [officer, superAdmins] = await Promise.all([
+    booking.createdBy ? User.findById(booking.createdBy).select('email').lean() : null,
+    User.find({ isActive: true, role: ROLES.SUPER_ADMIN }).select('email').lean(),
+  ]);
+  return [...new Set([
+    booking.guest?.email,
+    officer?.email,
+    ...superAdmins.map((user) => user.email),
+  ].filter(Boolean))];
+};
 
 const sendOnce = async (booking, type, key, invoice = null) => {
   const existing = await ReminderLog.findOne({ key }).select('_id').lean();
   if (existing) return false;
-  const sent = await emailService.sendBookingReminder(booking, type, invoice);
+  const recipients = type === 'payment'
+    ? await getPendingInvoiceRecipients(booking)
+    : [booking.guest?.email].filter(Boolean);
+  const sent = await emailService.sendBookingReminder(booking, type, invoice, recipients);
   if (!sent) return false;
   await ReminderLog.create({ key, booking: booking._id, type });
   return true;

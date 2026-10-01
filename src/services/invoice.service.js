@@ -1,4 +1,4 @@
-const { Invoice, User } = require('../models');
+const { Invoice } = require('../models');
 const ApiError = require('../utils/ApiError');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
@@ -131,18 +131,14 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', no
   });
 
   if (notify) {
-    const officer = await User.findById(booking.createdBy).select('email firstName lastName');
-    emailService.sendInvoiceGenerated(booking, invoice, officer)
-      .then(() => auditService.record({
+    emailService.sendInvoiceGenerated(booking, invoice)
+      .then((sent) => sent ? auditService.record({
         action: AUDIT_ACTIONS.EMAIL_SENT,
         booking,
         actorType: ACTOR_TYPE.SYSTEM,
-        metadata: {
-          emailType: 'Invoice Generated',
-          to: [booking.guest.email, officer?.email].filter(Boolean),
-        },
+        metadata: { emailType: 'Invoice Generated', to: booking.guest.email },
         message: `Invoice email dispatched for ${booking.bookingReference}.`,
-      }))
+      }) : logger.warn(`Invoice email delivery failed for ${booking.bookingReference}.`))
       .catch((error) => {
         logger.warn(`Invoice email failed: ${error.message}`);
       });
@@ -152,8 +148,7 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', no
 };
 
 const resendInvoiceEmail = async (booking, invoice) => {
-  const officer = await User.findById(booking.createdBy).select('email firstName lastName');
-  return emailService.sendInvoiceGenerated(booking, invoice, officer);
+  return emailService.sendInvoiceGenerated(booking, invoice);
 };
 
 const listInvoices = async (query = {}) => {

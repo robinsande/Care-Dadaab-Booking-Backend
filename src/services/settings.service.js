@@ -33,11 +33,6 @@ const updateSettings = async (data, actor) => {
     }
   }
 
-  if (data.notifications?.sendBookingConfirmation !== undefined) {
-    settings.notifications = settings.notifications || {};
-    settings.notifications.sendBookingConfirmation = data.notifications.sendBookingConfirmation;
-  }
-
   await settings.save();
 
   if (actor) {

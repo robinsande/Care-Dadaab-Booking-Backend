@@ -33,6 +33,7 @@ router.get('/bookings/:id/invoice', authenticateGuest, validate([mongoIdParam('i
 router.post('/bookings/:id/requests', authenticateGuest, validate([mongoIdParam('id'), ...bookingRequestRules]), controller.createForBooking);
 router.use('/staff', authenticate, anyStaff);
 router.get('/staff/requests', validate(listRules), controller.listStaff);
+router.delete('/staff/requests/:id', validate([mongoIdParam('id')]), controller.deleteStaffRequest);
 router.post('/staff/requests/:id/resolve', validate([mongoIdParam('id'), ...resolveRules]), controller.resolve);
 
 module.exports = router;

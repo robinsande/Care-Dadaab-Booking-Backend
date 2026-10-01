@@ -14,7 +14,7 @@ const REQUEST_TYPES = ['booking', 'adjustment', 'early_checkout', 'extension'];
 
 const staffRecipients = async () => {
   const [users, settings] = await Promise.all([
-    User.find({ isActive: true, role: 'Super Admin' }).select('email').lean(),
+    User.find({ isActive: true, role: { $in: ['Super Admin', 'Accommodation Officer'] } }).select('email').lean(),
     settingsService.getSettings(),
   ]);
   return [...new Set([
@@ -22,6 +22,12 @@ const staffRecipients = async () => {
     settings.supportEmail,
     env.support.email,
   ].filter(Boolean))];
+};
+
+const deleteForStaff = async (requestId) => {
+  const request = await GuestRequest.findByIdAndDelete(requestId);
+  if (!request) throw ApiError.notFound('Guest request not found.');
+  return { requestId: request._id };
 };
 
 const notify = async (request, guest) => {
@@ -279,6 +285,7 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
 module.exports = {
   createBookingRequestForGuest,
   createPublicBookingRequest,
+  deleteForStaff,
   listForGuest,
   listBookingsForGuest,
   getInvoiceForGuestBooking,

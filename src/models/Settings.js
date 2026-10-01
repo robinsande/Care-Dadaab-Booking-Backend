@@ -11,13 +11,6 @@ const paymentSettingsSchema = new mongoose.Schema(
   { _id: false }
 );
 
-const notificationSettingsSchema = new mongoose.Schema(
-  {
-    sendBookingConfirmation: { type: Boolean, default: true },
-  },
-  { _id: false }
-);
-
 const settingsSchema = new mongoose.Schema(
   {
     facilityName: {
@@ -38,10 +31,6 @@ const settingsSchema = new mongoose.Schema(
     },
     payment: {
       type: paymentSettingsSchema,
-      default: () => ({}),
-    },
-    notifications: {
-      type: notificationSettingsSchema,
       default: () => ({}),
     },
   },

@@ -1,5 +1,4 @@
 const nodemailer = require('nodemailer');
-const { User } = require('../models');
 const env = require('../config/env');
 const logger = require('../utils/logger');
 
@@ -355,7 +354,7 @@ const sendBookingCheckedOut = (booking, recipients = booking.guest.email) => {
   });
 };
 
-const sendBookingReminder = (booking, type, invoice = null) => {
+const sendBookingReminder = (booking, type, invoice = null, recipients = booking.guest.email) => {
   const isArrival = type === 'arrival';
   const isDeparture = type === 'departure';
   const title = isArrival ? 'Arrival Reminder' : isDeparture ? 'Departure Reminder' : 'Payment Reminder';
@@ -375,7 +374,7 @@ const sendBookingReminder = (booking, type, invoice = null) => {
     <p>Please contact CARE Accommodation if you need assistance.</p>
   `;
   return sendEmail({
-    to: booking.guest.email,
+    to: recipients,
     subject: `${title} - ${booking.bookingReference}`,
     html: layout(title, body),
     text: [
@@ -391,13 +390,7 @@ const sendBookingReminder = (booking, type, invoice = null) => {
   });
 };
 
-const sendInvoiceGenerated = async (booking, invoice, officer) => {
-    const superAdmins = await User.find({ isActive: true, role: 'Super Admin' }).select('email').lean();
-    const recipients = [...new Set([
-      booking.guest.email,
-      officer && officer.email,
-      ...superAdmins.map((user) => user.email),
-    ].filter(Boolean))];
+const sendInvoiceGenerated = async (booking, invoice) => {
   const payment = invoice.paymentInstructions || {};
   const body = `
     <p>Dear ${invoice.guest.firstName},</p>
@@ -421,8 +414,7 @@ const sendInvoiceGenerated = async (booking, invoice, officer) => {
   const html = layout('Invoice', body);
   const subject = `Invoice ${invoice.invoiceNumber} - ${invoice.bookingReference}`;
 
-  const results = await Promise.all(recipients.map((to) => sendEmail({ to, subject, html })));
-  return results.every(Boolean);
+  return sendEmail({ to: invoice.guest.email || booking.guest.email, subject, html });
 };
 
 const sendInvoicePaid = (invoice) => {
