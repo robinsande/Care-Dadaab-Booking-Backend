@@ -101,6 +101,12 @@ All endpoints require JWT except `POST /auth/login`.
 - `GET/POST/PUT/DELETE /users`
 - `GET/PUT /settings`
 
+### Guest booking requests
+- Guests submit a request at `POST /guest/public-requests` or through the guest portal.
+- The guest receives an acknowledgement email. Active Accommodation Officers and Super Admins, plus the support email, receive a separate action-needed message.
+- Staff complete a request by assigning a room available for the requested camp and dates. The resulting booking confirmation and billable PDF invoice are emailed to the guest only.
+- Configure SMTP (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`) or `BREVO_API_KEY` to deliver request and booking emails.
+
 ---
 
 ## Booking Statuses

@@ -130,6 +130,20 @@ const resolveAppliedRate = async ({ campId, stayType, fallbackRate, rateId }) =>
   return snapshotRate(campId, stayType || fallbackRate?.stayType, rateId);
 };
 
+const getInvoiceAttachment = async (invoice, bookingReference) => {
+  if (!invoice) return null;
+  try {
+    return {
+      filename: `${invoice.invoiceNumber || 'invoice'}.pdf`,
+      content: await invoiceService.generateInvoicePdfBuffer(invoice),
+      contentType: 'application/pdf',
+    };
+  } catch (error) {
+    logger.warn(`Invoice PDF generation failed for ${bookingReference}: ${error.message}`);
+    return null;
+  }
+};
+
 const createBooking = async (payload, actor) => {
   const { camp, block, room } = await resolveLocation({
     campId: payload.campId,
@@ -222,22 +236,23 @@ const createBooking = async (payload, actor) => {
     }).catch(() => {});
   }
   const recipients = await getBookingNotificationRecipients(booking);
-  const confirmation = booking.billingType === 'intercompany'
-    ? emailService.sendIntercompanyBookingConfirmation(booking, recipients)
-    : booking.billingType === 'waived'
-      ? emailService.sendWaivedBookingConfirmation(booking, recipients)
-      : emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients);
-  const invoiceEmail = invoice
-    ? invoiceService.resendInvoiceEmail(booking, invoice)
-    : Promise.resolve(false);
-  Promise.all([confirmation, invoiceEmail])
-    .then(([bookingEmailSent, invoiceEmailSent]) => {
+  const confirmation = async () => {
+    const invoicePdf = await getInvoiceAttachment(invoice, booking.bookingReference);
+    if (booking.billingType === 'intercompany') {
+      return emailService.sendIntercompanyBookingConfirmation(booking, recipients);
+    }
+    if (booking.billingType === 'waived') {
+      return emailService.sendWaivedBookingConfirmation(booking, recipients);
+    }
+    return emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients, invoicePdf);
+  };
+  confirmation()
+    .then((bookingEmailSent) => {
       if (bookingEmailSent) {
         recordEmailSent(booking, booking.billingType === 'intercompany' ? 'Intercompany Booking Confirmation' : booking.billingType === 'waived' ? 'Waived Booking Confirmation' : 'Booking Confirmation and Invoice');
       } else {
         logger.warn(`Booking confirmation delivery failed for ${booking.bookingReference}.`);
       }
-      if (invoice && !invoiceEmailSent) logger.warn(`Invoice email delivery failed for ${booking.bookingReference}.`);
     })
     .catch((error) => {
       logger.warn(`Booking confirmation email failed: ${error.message}`);
@@ -255,12 +270,13 @@ const resendBookingEmails = async (bookingId, actor) => {
     notify: false,
   });
   const recipients = await getBookingNotificationRecipients(booking);
+  const invoicePdf = await getInvoiceAttachment(invoice, booking.bookingReference);
   const bookingEmailSent = booking.billingType === 'intercompany'
     ? await emailService.sendIntercompanyBookingConfirmation(booking, recipients)
     : booking.billingType === 'waived'
       ? await emailService.sendWaivedBookingConfirmation(booking, recipients)
-    : await emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients);
-  const invoiceEmailSent = invoice ? await invoiceService.resendInvoiceEmail(booking, invoice) : false;
+    : await emailService.sendBookingConfirmationWithInvoice(booking, invoice, recipients, invoicePdf);
+  const invoiceEmailSent = Boolean(invoice && invoicePdf && bookingEmailSent);
 
   await auditService.record({
     action: AUDIT_ACTIONS.EMAIL_SENT,

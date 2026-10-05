@@ -7,6 +7,7 @@ const configuredAdminPanelUrl = String(env.adminPanelUrl || defaultAdminPanelUrl
 const adminPanelUrl = /^https?:\/\//i.test(configuredAdminPanelUrl)
   ? configuredAdminPanelUrl
   : new URL(configuredAdminPanelUrl, defaultAdminPanelUrl).toString();
+const guestRequestsUrl = new URL('admin/guest-requests.html', adminPanelUrl).toString();
 
 let transporter = null;
 
@@ -34,7 +35,15 @@ const formatDate = (date) =>
     day: 'numeric',
   });
 
-const sendEmail = async ({ to, subject, html, text }) => {
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}[character]));
+
+const sendEmail = async ({ to, subject, html, text, attachments = [] }) => {
   const from = `"${env.emailFrom.name}" <${env.emailFrom.address}>`;
   const recipients = [...new Set((Array.isArray(to) ? to : [to]).filter(Boolean))];
   if (!recipients.length) {
@@ -43,7 +52,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
   }
   if (recipients.length > 1) {
     const results = await Promise.all(
-      recipients.map((recipient) => sendEmail({ to: recipient, subject, html, text }))
+      recipients.map((recipient) => sendEmail({ to: recipient, subject, html, text, attachments }))
     );
     return results.every(Boolean);
   }
@@ -65,6 +74,12 @@ const sendEmail = async ({ to, subject, html, text }) => {
           subject,
           htmlContent: html,
           textContent: text,
+          attachments: attachments.map((attachment) => ({
+            name: attachment.filename,
+            content: Buffer.isBuffer(attachment.content)
+              ? attachment.content.toString('base64')
+              : attachment.content,
+          })),
         }),
         signal: AbortSignal.timeout(15000),
       });
@@ -97,6 +112,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
       subject,
       html,
       text,
+      attachments,
     });
     logger.info(`Email sent to ${recipient} | Subject: ${subject}`);
     return true;
@@ -164,7 +180,7 @@ const sendBookingCreated = (booking, recipients = booking.guest.email) => {
   });
 };
 
-const sendBookingConfirmationWithInvoice = (booking, invoice, recipients = booking.guest.email) => {
+const sendBookingConfirmationWithInvoice = (booking, invoice, recipients = booking.guest.email, invoicePdf) => {
   const payment = invoice?.paymentInstructions || {};
   const body = `
     <p>Dear ${booking.guest.firstName},</p>
@@ -183,6 +199,22 @@ const sendBookingConfirmationWithInvoice = (booking, invoice, recipients = booki
     to: recipients,
     subject: `Booking Confirmed and Invoice - ${booking.bookingReference}`,
     html: layout('Booking Confirmation and Invoice', body),
+    text: [
+      `Dear ${booking.guest.firstName},`,
+      '',
+      'Your accommodation booking has been confirmed.',
+      `Booking Reference: ${booking.bookingReference}`,
+      `Camp: ${booking.campName}`,
+      `Room: Block ${booking.blockName} Room ${booking.roomNumber}`,
+      `Stay Type: ${booking.stayType}`,
+      `Arrival Date: ${formatDate(booking.arrivalDate)}`,
+      `Departure Date: ${formatDate(booking.departureDate)}`,
+      invoice ? `Invoice Number: ${invoice.invoiceNumber}` : '',
+      invoice ? `Total Amount: ${invoice.appliedRate.currency} ${invoice.totalAmount}` : '',
+      '',
+      invoicePdf ? 'Your invoice PDF is attached to this email.' : '',
+    ].filter(Boolean).join('\n'),
+    attachments: invoicePdf ? [invoicePdf] : [],
   });
 };
 
@@ -390,7 +422,7 @@ const sendBookingReminder = (booking, type, invoice = null, recipients = booking
   });
 };
 
-const sendInvoiceGenerated = async (booking, invoice) => {
+const sendInvoiceGenerated = async (booking, invoice, invoicePdf) => {
   const payment = invoice.paymentInstructions || {};
   const body = `
     <p>Dear ${invoice.guest.firstName},</p>
@@ -414,7 +446,12 @@ const sendInvoiceGenerated = async (booking, invoice) => {
   const html = layout('Invoice', body);
   const subject = `Invoice ${invoice.invoiceNumber} - ${invoice.bookingReference}`;
 
-  return sendEmail({ to: invoice.guest.email || booking.guest.email, subject, html });
+  return sendEmail({
+    to: invoice.guest.email || booking.guest.email,
+    subject,
+    html,
+    attachments: invoicePdf ? [invoicePdf] : [],
+  });
 };
 
 const sendInvoicePaid = (invoice) => {
@@ -467,25 +504,83 @@ const sendGuestPasswordReset = (guest, token) => {
   });
 };
 
-const sendGuestRequestNotification = (request, guest, recipients = []) => {
+const sendGuestBookingRequestConfirmation = (request, guest) => {
   const guestName = guest?.firstName || request.guest?.firstName || 'Guest';
-  const reference = request.booking?.bookingReference || request.bookingReference || 'new booking request';
   const body = `
-    <p>Dear ${guestName},</p>
-    <p>Your guest portal request has been <strong>${request.status || 'submitted'}</strong>.</p>
-    ${detailRow('Request Type', request.type)}
-    ${detailRow('Booking', reference)}
-    ${request.booking?.appliedRate ? detailRow('Room rate', `${request.booking.appliedRate.currency} ${request.booking.appliedRate.amount} per ${request.booking.appliedRate.ratePeriod === 'per_month' ? 'month' : 'night'}`) : ''}
-    ${request.reason ? detailRow('Reason', request.reason) : ''}
-    <p>Staff will review the request and contact you with any further details.</p>
-    <p><a href="${adminPanelUrl}">Open the booking panel</a></p>
+    <p>Dear ${escapeHtml(guestName)},</p>
+    <p>We have received your accommodation booking request. The booking team will review it and email you once your booking is confirmed.</p>
+    ${detailRow('Camp', escapeHtml(request.camp?.name || request.campName || 'CARE Dadaab accommodation'))}
+    ${detailRow('Stay Type', escapeHtml(request.stayType))}
+    ${detailRow('Arrival Date', escapeHtml(formatDate(request.arrivalDate)))}
+    ${detailRow('Departure Date', escapeHtml(formatDate(request.departureDate)))}
+    <p>Please note that your stay is not confirmed until you receive a booking confirmation.</p>
   `;
-  const to = [...new Set([guest?.email, request.guest?.email, ...recipients].filter(Boolean))];
   return sendEmail({
-    to,
+    to: guest?.email || request.guest?.email,
+    subject: 'CARE accommodation booking request received',
+    html: layout('Booking Request Received', body),
+    text: [
+      `Dear ${guestName},`,
+      '',
+      'We have received your accommodation booking request.',
+      `Camp: ${request.camp?.name || request.campName || 'CARE Dadaab accommodation'}`,
+      `Stay Type: ${request.stayType}`,
+      `Arrival Date: ${formatDate(request.arrivalDate)}`,
+      `Departure Date: ${formatDate(request.departureDate)}`,
+      '',
+      'The booking team will review your request. Your stay is not confirmed until you receive a booking confirmation.',
+    ].join('\n'),
+  });
+};
+
+const sendStaffGuestBookingRequestNotification = (request, guest, recipients = []) => {
+  const guestName = `${guest?.firstName || ''} ${guest?.lastName || ''}`.trim() || 'Guest';
+  const body = `
+    <p>A guest booking request requires review and room assignment.</p>
+    ${detailRow('Guest', escapeHtml(guestName))}
+    ${detailRow('Guest Email', escapeHtml(guest?.email || ''))}
+    ${detailRow('Phone', escapeHtml(request.requestedData?.phone || guest?.phone || ''))}
+    ${detailRow('Camp', escapeHtml(request.camp?.name || request.campName || 'CARE Dadaab accommodation'))}
+    ${detailRow('Stay Type', escapeHtml(request.stayType))}
+    ${detailRow('Arrival Date', escapeHtml(formatDate(request.arrivalDate)))}
+    ${detailRow('Departure Date', escapeHtml(formatDate(request.departureDate)))}
+    ${request.reason ? detailRow('Request Notes', escapeHtml(request.reason)) : ''}
+    ${request.requestedData?.remarks ? detailRow('Remarks', escapeHtml(request.requestedData.remarks)) : ''}
+    <p><a href="${guestRequestsUrl}">Review and complete this booking request</a></p>
+  `;
+  return sendEmail({
+    to: recipients,
+    subject: 'Guest booking request requires room assignment',
+    html: layout('Guest Booking Request', body),
+    text: [
+      'A guest booking request requires review and room assignment.',
+      `Guest: ${guestName}`,
+      `Email: ${guest?.email || ''}`,
+      `Camp: ${request.camp?.name || request.campName || 'CARE Dadaab accommodation'}`,
+      `Stay Type: ${request.stayType}`,
+      `Arrival Date: ${formatDate(request.arrivalDate)}`,
+      `Departure Date: ${formatDate(request.departureDate)}`,
+      `Review request: ${guestRequestsUrl}`,
+    ].join('\n'),
+  });
+};
+
+const sendGuestRequestNotification = (request, guest) => {
+  const guestName = guest?.firstName || request.guest?.firstName || 'Guest';
+  const reference = request.booking?.bookingReference || request.bookingReference || 'request';
+  const body = `
+    <p>Dear ${escapeHtml(guestName)},</p>
+    <p>Your ${escapeHtml(request.type)} request has been <strong>${escapeHtml(request.status || 'submitted')}</strong>.</p>
+    ${detailRow('Booking', escapeHtml(reference))}
+    ${request.booking?.roomNumber ? detailRow('Room', `Block ${escapeHtml(request.booking.blockName)} Room ${escapeHtml(request.booking.roomNumber)}`) : ''}
+    ${request.resolutionNote ? detailRow('Resolution Note', escapeHtml(request.resolutionNote)) : ''}
+    <p>Contact the accommodation team if you have questions.</p>
+  `;
+  return sendEmail({
+    to: guest?.email || request.guest?.email,
     subject: `Guest ${request.type} request - ${reference}`,
     html: layout('Guest Request Update', body),
-    text: `Your ${request.type} request for ${reference} is ${request.status || 'submitted'}.\nBooking panel: ${adminPanelUrl}`,
+    text: `Your ${request.type} request for ${reference} is ${request.status || 'submitted'}.`,
   });
 };
 
@@ -504,5 +599,7 @@ module.exports = {
   sendInvoiceGenerated,
   sendInvoicePaid,
   sendGuestPasswordReset,
+  sendGuestBookingRequestConfirmation,
+  sendStaffGuestBookingRequestNotification,
   sendGuestRequestNotification,
 };

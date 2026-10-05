@@ -12,17 +12,15 @@ This document is the single source of truth for CAMS.
 
 Both the frontend and backend MUST follow this specification.
 
-Version 1 (guest booking request workflow) is retired. Any conflicting v1 requirement must be ignored.
+Guest-submitted booking requests are reviewed by staff before becoming bookings.
 
 ---
 
 # System Overview
 
-CAMS is an internal accommodation management platform for CARE staff.
+CAMS is an accommodation management platform for CARE staff and guests.
 
-Guests do NOT access the application. Guests do NOT create bookings.
-
-Accommodation Officers create and manage all bookings.
+Guests can submit booking requests through the public guest portal. Accommodation Officers review requests, assign available rooms, and create confirmed bookings.
 
 The system supports multiple CARE accommodation facilities (camps).
 
@@ -71,9 +69,13 @@ Everything the Accommodation Officer can do, plus:
 
 # Booking Workflow
 
-Accommodation Officer logs in → creates booking → selects camp, block, room, stay type → booking created immediately → guest receives confirmation email → check in → check out → invoice generated and emailed.
+1. A guest submits a booking request with their stay type and requested dates.
+2. The guest receives a request acknowledgement, and active Accommodation Officers/Super Admins and the support address receive an action-needed email.
+3. An officer reviews the request, assigns an available room for the requested camp and dates, and completes the booking.
+4. The booking is created with status **Booked**. The guest receives a confirmation email and, for billable bookings, a PDF invoice attachment.
+5. The officer checks the guest in → **Checked In**, then checks the guest out → **Checked Out**.
 
-There is NO approval workflow. There are NO public booking endpoints.
+Guest requests are separate from bookings and do not reserve rooms until staff complete them. Booking statuses remain Booked, Checked In, Checked Out, or Cancelled.
 
 ---
 

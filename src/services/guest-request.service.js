@@ -6,6 +6,7 @@ const emailService = require('./email.service');
 const invoiceService = require('./invoice.service');
 const settingsService = require('./settings.service');
 const env = require('../config/env');
+const logger = require('../utils/logger');
 const crypto = require('crypto');
 const mouService = require('./mou.service');
 const rateService = require('./rate.service');
@@ -30,11 +31,29 @@ const deleteForStaff = async (requestId) => {
   return { requestId: request._id };
 };
 
-const notify = async (request, guest) => {
+const notify = async (request, guest, { bookingRequestSubmitted = false } = {}) => {
   try {
-    await emailService.sendGuestRequestNotification(request, guest, await staffRecipients());
-  } catch (_) {
-    // Email delivery must not prevent a request being recorded.
+    if (bookingRequestSubmitted) {
+      const guestEmail = emailService.sendGuestBookingRequestConfirmation(request, guest);
+      let recipients = [];
+      try {
+        recipients = await staffRecipients();
+      } catch (error) {
+        logger.error(`Unable to resolve staff recipients for booking request ${request._id}: ${error.message}`);
+      }
+      const [guestSent, staffSent] = await Promise.all([
+        guestEmail,
+        emailService.sendStaffGuestBookingRequestNotification(request, guest, recipients),
+      ]);
+      if (!guestSent) logger.warn(`Guest request acknowledgement email failed for ${guest.email}.`);
+      if (!staffSent) logger.warn(`Staff booking request notification failed for request ${request._id}.`);
+      return;
+    }
+
+    const sent = await emailService.sendGuestRequestNotification(request, guest);
+    if (!sent) logger.warn(`Guest request update email failed for request ${request._id}.`);
+  } catch (error) {
+    logger.error(`Guest request notification failed for request ${request._id}: ${error.message}`);
   }
 };
 
@@ -98,7 +117,8 @@ const createBookingRequest = async (guest, payload) => {
       rateId: stayType === 'Short Stay' && !isCareStaff ? (payload.rateId || '') : '',
     },
   });
-  await notify(request, guest);
+  await request.populate('camp', 'name');
+  await notify(request, guest, { bookingRequestSubmitted: true });
   return request;
 };
 
@@ -203,7 +223,7 @@ const listForStaff = (query = {}) => GuestRequest.find(query)
   .populate('resolvedBy', 'firstName lastName email')
   .sort({ status: 1, createdAt: -1 });
 
-const resolve = async (requestId, actor, { action = 'approve', resolutionNote = '', campId, blockId, roomId } = {}) => {
+const resolve = async (requestId, actor, { action = 'approve', resolutionNote = '', roomId } = {}) => {
   const request = await GuestRequest.findById(requestId).populate('guest');
   if (!request) throw ApiError.notFound('Guest request not found.');
   if (request.status !== 'pending') throw ApiError.badRequest('This guest request has already been resolved.');
@@ -219,14 +239,10 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
 
   let booking = null;
   if (request.type === 'booking') {
-    const rooms = campId && blockId && roomId
-      ? [{ _id: roomId, block: blockId }]
-      : await Room.find({ camp: request.camp, isActive: true }).sort({ blockName: 1, roomNumber: 1 }).select('_id block').lean();
-    if (!rooms.length) throw ApiError.badRequest('No active rooms are available in the requested camp.');
-    let lastError;
-    for (const room of rooms) {
-      try {
-        booking = (await bookingService.createBooking({
+    if (!roomId) throw ApiError.badRequest('Select an available room before completing this booking request.');
+    const room = await Room.findOne({ _id: roomId, camp: request.camp, isActive: true }).select('_id block');
+    if (!room) throw ApiError.badRequest('The selected room is not active in the requested camp.');
+    booking = (await bookingService.createBooking({
       firstName: request.requestedData?.firstName || request.guest.firstName,
       lastName: request.requestedData?.lastName || request.guest.lastName,
       email: request.guest.email,
@@ -240,8 +256,8 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
       departureCountry: request.requestedData?.departureCountry,
       arrivalDate: request.arrivalDate,
       departureDate: request.departureDate,
-      campId: campId || request.camp,
-      blockId: blockId || room.block,
+      campId: request.camp,
+      blockId: room.block,
       roomId: room._id,
       stayType: request.stayType,
       mouId: request.mou,
@@ -250,13 +266,7 @@ const resolve = async (requestId, actor, { action = 'approve', resolutionNote = 
       driverPickup: request.requestedData?.driverPickup,
       rateId: request.requestedData?.rateId,
       guestAccountId: request.guest._id,
-        }, actor)).booking;
-        break;
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    if (!booking) throw lastError || ApiError.badRequest('Unable to assign an available room.');
+    }, actor)).booking;
   } else {
     booking = await getGuestBooking(request.guest, request.booking);
     if (request.type === 'adjustment') {

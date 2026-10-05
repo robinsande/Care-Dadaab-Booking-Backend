@@ -131,7 +131,7 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', no
   });
 
   if (notify) {
-    emailService.sendInvoiceGenerated(booking, invoice)
+    sendInvoiceEmail(booking, invoice)
       .then((sent) => sent ? auditService.record({
         action: AUDIT_ACTIONS.EMAIL_SENT,
         booking,
@@ -145,10 +145,6 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', no
   }
 
   return invoice;
-};
-
-const resendInvoiceEmail = async (booking, invoice) => {
-  return emailService.sendInvoiceGenerated(booking, invoice);
 };
 
 const listInvoices = async (query = {}) => {
@@ -320,13 +316,22 @@ const generateInvoicePdfBuffer = (invoice) =>
     doc.end();
   });
 
+const sendInvoiceEmail = async (booking, invoice) => {
+  const content = await generateInvoicePdfBuffer(invoice);
+  return emailService.sendInvoiceGenerated(booking, invoice, {
+    filename: `${invoice.invoiceNumber || 'invoice'}.pdf`,
+    content,
+    contentType: 'application/pdf',
+  });
+};
+
 module.exports = {
   isNonBillableCareStaff,
   isIntercompanyCareStaffLongStay,
   generateInvoiceForBooking,
   listInvoices,
   getInvoiceById,
-  resendInvoiceEmail,
+  resendInvoiceEmail: sendInvoiceEmail,
   updatePaymentStatus,
   generateInvoicePdfBuffer,
 };
