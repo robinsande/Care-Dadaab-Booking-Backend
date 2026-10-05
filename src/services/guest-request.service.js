@@ -4,8 +4,6 @@ const campService = require('./camp.service');
 const bookingService = require('./booking.service');
 const emailService = require('./email.service');
 const invoiceService = require('./invoice.service');
-const settingsService = require('./settings.service');
-const env = require('../config/env');
 const logger = require('../utils/logger');
 const crypto = require('crypto');
 const mouService = require('./mou.service');
@@ -14,15 +12,11 @@ const rateService = require('./rate.service');
 const REQUEST_TYPES = ['booking', 'adjustment', 'early_checkout', 'extension'];
 
 const staffRecipients = async () => {
-  const [users, settings] = await Promise.all([
-    User.find({ isActive: true, role: { $in: ['Super Admin', 'Accommodation Officer'] } }).select('email').lean(),
-    settingsService.getSettings(),
-  ]);
-  return [...new Set([
-    ...users.map((user) => user.email),
-    settings.supportEmail,
-    env.support.email,
-  ].filter(Boolean))];
+  const users = await User.find({
+    isActive: true,
+    role: { $in: ['Super Admin', 'Accommodation Officer'] },
+  }).select('email').lean();
+  return [...new Set(users.map((user) => user.email).filter(Boolean))];
 };
 
 const deleteForStaff = async (requestId) => {
