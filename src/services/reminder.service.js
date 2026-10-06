@@ -27,7 +27,13 @@ const getPendingInvoiceStaffRecipients = async (booking, invoice) => {
 };
 
 const sendOnce = async (booking, type, key, invoice = null) => {
-  const existing = await ReminderLog.findOne({ key }).select('_id').lean();
+  let existing = await ReminderLog.findOne({ key }).select('_id').lean();
+  const intervalMatch = type === 'payment' && key.match(/:payment-24h:(\d+)$/);
+  if (!existing && intervalMatch) {
+    existing = await ReminderLog.findOne({
+      key: `${booking._id}:payment:${intervalMatch[1]}`,
+    }).select('_id').lean();
+  }
   if (existing) return false;
   let sent;
   if (type === 'payment') {
@@ -48,6 +54,25 @@ const sendOnce = async (booking, type, key, invoice = null) => {
   if (!sent) return false;
   await ReminderLog.create({ key, booking: booking._id, type });
   return true;
+};
+
+const sendPendingInvoiceCatchUp = async (booking, invoice) => {
+  const previousReminder = await ReminderLog.findOne({
+    booking: booking._id,
+    type: 'payment',
+  }).select('_id').lean();
+  if (previousReminder) return null;
+  const hoursSinceBooking = Math.max(
+    Math.floor((Date.now() - new Date(booking.createdAt || invoice.generatedAt).getTime()) / 3600000),
+    0,
+  );
+  const reminderInterval = Math.floor(hoursSinceBooking / 24);
+  return sendOnce(
+    booking,
+    'payment',
+    `${booking._id}:payment-24h:${reminderInterval}`,
+    invoice,
+  );
 };
 
 const sendScheduledReminders = async () => {
@@ -80,9 +105,21 @@ const sendScheduledReminders = async () => {
     .lean();
   for (const invoice of unpaid) {
     if (!invoice.booking) continue;
-    const ageDays = Math.floor((Date.now() - new Date(invoice.generatedAt).getTime()) / 86400000);
-    if (ageDays < 3 || ageDays % 3 !== 0) continue;
-    if (await sendOnce(invoice.booking, 'payment', `${invoice.booking._id}:payment:${ageDays}`, invoice)) {
+    const catchUpSent = await sendPendingInvoiceCatchUp(invoice.booking, invoice);
+    if (catchUpSent !== null) {
+      if (catchUpSent) sentCount += 1;
+      continue;
+    }
+    const bookingCreatedAt = invoice.booking.createdAt || invoice.generatedAt;
+    const hoursSinceBooking = Math.floor((Date.now() - new Date(bookingCreatedAt).getTime()) / 3600000);
+    if (hoursSinceBooking < 24) continue;
+    const reminderInterval = Math.floor(hoursSinceBooking / 24);
+    if (await sendOnce(
+      invoice.booking,
+      'payment',
+      `${invoice.booking._id}:payment-24h:${reminderInterval}`,
+      invoice,
+    )) {
       sentCount += 1;
     }
   }
@@ -100,5 +137,6 @@ module.exports = {
   sendScheduledReminders,
   runReminderSweep,
   getPendingInvoiceStaffRecipients,
+  sendPendingInvoiceCatchUp,
   sendOnce,
 };

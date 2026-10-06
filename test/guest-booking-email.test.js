@@ -324,6 +324,7 @@ test('pending invoice reminders email the guest, booking officer, and active sup
     roomNumber: '1',
     arrivalDate: new Date('2026-11-01'),
     departureDate: new Date('2026-11-03'),
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
   };
   const invoice = {
     invoiceNumber: 'INV-000001',
@@ -361,7 +362,7 @@ test('pending invoice reminders email the guest, booking officer, and active sup
     User.find = originals.findUsers;
   });
 
-  assert.equal(await reminderService.sendOnce(booking, 'payment', 'booking-id:payment:3', invoice), true);
+  assert.equal(await reminderService.sendPendingInvoiceCatchUp(booking, invoice), true);
   const guestMessage = messages.find((message) => message.to[0].email === booking.guest.email);
   const staffMessages = messages.filter((message) => message.to[0].email !== booking.guest.email);
   assert.ok(guestMessage.subject.startsWith('Payment Reminder'));
@@ -370,4 +371,22 @@ test('pending invoice reminders email the guest, booking officer, and active sup
     ['admin@example.org', 'officer@example.org'],
   );
   assert.ok(staffMessages.every((message) => message.subject.includes('Pending invoice INV-000001')));
+});
+
+test('pending invoice catch-up skips invoices with an already successful payment reminder', async (t) => {
+  const originalFindReminder = ReminderLog.findOne;
+  ReminderLog.findOne = (query) => ({
+    select: () => ({
+      lean: async () => (query.booking ? { _id: 'existing-reminder' } : null),
+    }),
+  });
+  t.after(() => {
+    ReminderLog.findOne = originalFindReminder;
+  });
+
+  const sent = await reminderService.sendPendingInvoiceCatchUp(
+    { _id: 'booking-id', createdAt: new Date() },
+    { generatedAt: new Date() },
+  );
+  assert.equal(sent, null);
 });
