@@ -4,25 +4,47 @@ const logger = require('../utils/logger');
 const { BOOKING_STATUS, INVOICE_PAYMENT_STATUS, ROLES } = require('../utils/constants');
 const { startOfDay, endOfDay } = require('../utils/dates');
 
-const getPendingInvoiceRecipients = async (booking) => {
+const getPendingInvoiceStaffRecipients = async (booking, invoice) => {
+  const recipientOfficer = invoice?.recipientOfficer;
+  let officerEmail = recipientOfficer && typeof recipientOfficer === 'object'
+    ? recipientOfficer.email
+    : null;
+  const officerId = recipientOfficer?._id || recipientOfficer || booking.createdBy;
+  if (!officerEmail && officerId) {
+    officerEmail = (await User.findById(officerId).select('email').lean())?.email;
+  }
   const [officer, superAdmins] = await Promise.all([
-    booking.createdBy ? User.findById(booking.createdBy).select('email').lean() : null,
-    User.find({ isActive: true, role: ROLES.SUPER_ADMIN }).select('email').lean(),
+    Promise.resolve(officerEmail),
+    User.find({
+      isActive: true,
+      role: ROLES.SUPER_ADMIN,
+    }).select('email').lean(),
   ]);
   return [...new Set([
-    booking.guest?.email,
-    officer?.email,
+    officer,
     ...superAdmins.map((user) => user.email),
-  ].filter(Boolean))];
+  ].filter((email) => email && email !== booking.guest?.email))];
 };
 
 const sendOnce = async (booking, type, key, invoice = null) => {
   const existing = await ReminderLog.findOne({ key }).select('_id').lean();
   if (existing) return false;
-  const recipients = type === 'payment'
-    ? await getPendingInvoiceRecipients(booking)
-    : [booking.guest?.email].filter(Boolean);
-  const sent = await emailService.sendBookingReminder(booking, type, invoice, recipients);
+  let sent;
+  if (type === 'payment') {
+    const staffRecipients = await getPendingInvoiceStaffRecipients(booking, invoice);
+    const [guestSent, staffSent] = await Promise.all([
+      emailService.sendBookingReminder(booking, type, invoice, [booking.guest?.email].filter(Boolean)),
+      emailService.sendPendingInvoiceStaffReminder(booking, invoice, staffRecipients),
+    ]);
+    sent = guestSent && staffSent;
+  } else {
+    sent = await emailService.sendBookingReminder(
+      booking,
+      type,
+      invoice,
+      [booking.guest?.email].filter(Boolean),
+    );
+  }
   if (!sent) return false;
   await ReminderLog.create({ key, booking: booking._id, type });
   return true;
@@ -74,4 +96,9 @@ const runReminderSweep = () => sendScheduledReminders()
     return 0;
   });
 
-module.exports = { sendScheduledReminders, runReminderSweep };
+module.exports = {
+  sendScheduledReminders,
+  runReminderSweep,
+  getPendingInvoiceStaffRecipients,
+  sendOnce,
+};

@@ -422,6 +422,38 @@ const sendBookingReminder = (booking, type, invoice = null, recipients = booking
   });
 };
 
+const sendPendingInvoiceStaffReminder = (booking, invoice, recipients = []) => {
+  const currency = invoice?.appliedRate?.currency || 'KES';
+  const amount = Number(invoice?.totalAmount || 0).toFixed(2);
+  const body = `
+    <p>This booking has an unpaid accommodation invoice requiring follow-up.</p>
+    ${detailRow('Invoice Number', escapeHtml(invoice?.invoiceNumber || 'Pending'))}
+    ${detailRow('Booking Reference', escapeHtml(booking.bookingReference))}
+    ${detailRow('Guest', escapeHtml(`${booking.guest?.firstName || ''} ${booking.guest?.lastName || ''}`.trim()))}
+    ${detailRow('Guest Email', escapeHtml(booking.guest?.email || ''))}
+    ${detailRow('Camp', escapeHtml(booking.campName))}
+    ${detailRow('Outstanding Amount', `${escapeHtml(currency)} ${escapeHtml(amount)}`)}
+    ${detailRow('Invoice Generated', escapeHtml(formatDate(invoice?.generatedAt)))}
+    <p><a href="${adminPanelUrl}admin/invoices.html">Review outstanding invoices</a></p>
+  `;
+  return sendEmail({
+    to: recipients,
+    subject: `Pending invoice ${invoice?.invoiceNumber || ''} - ${booking.bookingReference}`.trim(),
+    html: layout('Pending Invoice Follow-up', body),
+    text: [
+      'This booking has an unpaid accommodation invoice requiring follow-up.',
+      `Invoice Number: ${invoice?.invoiceNumber || 'Pending'}`,
+      `Booking Reference: ${booking.bookingReference}`,
+      `Guest: ${`${booking.guest?.firstName || ''} ${booking.guest?.lastName || ''}`.trim()}`,
+      `Guest Email: ${booking.guest?.email || ''}`,
+      `Camp: ${booking.campName}`,
+      `Outstanding Amount: ${currency} ${amount}`,
+      `Invoice Generated: ${formatDate(invoice?.generatedAt)}`,
+      `Review outstanding invoices: ${adminPanelUrl}admin/invoices.html`,
+    ].join('\n'),
+  });
+};
+
 const sendInvoiceGenerated = async (booking, invoice, invoicePdf, recipients = invoice.guest.email) => {
   const payment = invoice.paymentInstructions || {};
   const body = `
@@ -658,6 +690,7 @@ module.exports = {
   sendBookingCheckedIn,
   sendBookingCheckedOut,
   sendBookingReminder,
+  sendPendingInvoiceStaffReminder,
   sendInvoiceGenerated,
   sendInvoicePaid,
   sendGuestPasswordReset,

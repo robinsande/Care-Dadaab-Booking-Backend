@@ -159,7 +159,7 @@ Cancellable from Booked or Checked In.
 Generated and emailed automatically on check-out, including when an invoice already exists. The guest and the officer who created the booking receive the PDF.
 
 Recipients: guest and the officer who created the booking.
-
+Unpaid invoices receive payment reminders every three days after generation. The guest receives the payment reminder; the booking officer and active Super Admins receive a staff follow-up alert.
 Invoice number format: `INV-YYYY-000001` (sequential, unique).
 
 Contains: invoice number, booking reference, guest details, camp, block, room, dates, nights, stay type, applied rate, total amount, payment instructions.

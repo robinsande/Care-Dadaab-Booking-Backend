@@ -2,10 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const env = require('../src/config/env');
 const emailService = require('../src/services/email.service');
-const { GuestRequest, Booking, User } = require('../src/models');
+const { GuestRequest, Booking, User, ReminderLog } = require('../src/models');
 const invoiceService = require('../src/services/invoice.service');
 const auditService = require('../src/services/audit.service');
 const bookingService = require('../src/services/booking.service');
+const reminderService = require('../src/services/reminder.service');
 const guestRequestService = require('../src/services/guest-request.service');
 
 test('staff cannot complete a booking request without assigning a room', async (t) => {
@@ -301,4 +302,72 @@ test('resending booking emails alerts guest, booking officers, super admins, and
       'officer@example.org',
     ],
   );
+});
+
+test('pending invoice reminders email the guest, booking officer, and active super admins', async (t) => {
+  const originals = {
+    fetch: global.fetch,
+    apiKey: env.brevoApiKey,
+    findReminder: ReminderLog.findOne,
+    createReminder: ReminderLog.create,
+    findUser: User.findById,
+    findUsers: User.find,
+  };
+  const messages = [];
+  const booking = {
+    _id: 'booking-id',
+    bookingReference: 'CARE-20261101-000001',
+    createdBy: 'creator-id',
+    guest: { firstName: 'Amina', lastName: 'Guest', email: 'amina@example.org' },
+    campName: 'Dadaab',
+    blockName: 'A',
+    roomNumber: '1',
+    arrivalDate: new Date('2026-11-01'),
+    departureDate: new Date('2026-11-03'),
+  };
+  const invoice = {
+    invoiceNumber: 'INV-000001',
+    booking: booking._id,
+    recipientOfficer: 'creator-id',
+    generatedAt: new Date('2026-10-01'),
+    appliedRate: { currency: 'KES' },
+    totalAmount: 3000,
+  };
+  env.brevoApiKey = 'test-api-key';
+  global.fetch = async (_url, options) => {
+    messages.push(JSON.parse(options.body));
+    return { ok: true };
+  };
+  ReminderLog.findOne = () => ({
+    select: () => ({ lean: async () => null }),
+  });
+  ReminderLog.create = async () => ({});
+  User.findById = () => ({
+    select: () => ({
+      lean: async () => ({ email: 'officer@example.org' }),
+    }),
+  });
+  User.find = () => ({
+    select: () => ({
+      lean: async () => [{ email: 'admin@example.org' }],
+    }),
+  });
+  t.after(() => {
+    global.fetch = originals.fetch;
+    env.brevoApiKey = originals.apiKey;
+    ReminderLog.findOne = originals.findReminder;
+    ReminderLog.create = originals.createReminder;
+    User.findById = originals.findUser;
+    User.find = originals.findUsers;
+  });
+
+  assert.equal(await reminderService.sendOnce(booking, 'payment', 'booking-id:payment:3', invoice), true);
+  const guestMessage = messages.find((message) => message.to[0].email === booking.guest.email);
+  const staffMessages = messages.filter((message) => message.to[0].email !== booking.guest.email);
+  assert.ok(guestMessage.subject.startsWith('Payment Reminder'));
+  assert.deepEqual(
+    staffMessages.map((message) => message.to[0].email).sort(),
+    ['admin@example.org', 'officer@example.org'],
+  );
+  assert.ok(staffMessages.every((message) => message.subject.includes('Pending invoice INV-000001')));
 });
