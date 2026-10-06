@@ -70,9 +70,9 @@ Everything the Accommodation Officer can do, plus:
 # Booking Workflow
 
 1. A guest submits a booking request with their stay type and requested dates.
-2. The guest receives a request acknowledgement, and active Accommodation Officers/Super Admins and the support address receive an action-needed email.
+2. The guest receives a request acknowledgement, and active Accommodation Officers/Super Admins and the support address receive an action-needed email for every guest-portal request.
 3. An officer reviews the request, assigns an available room for the requested camp and dates, and completes the booking.
-4. The booking is created with status **Booked**. The guest receives a confirmation email and, for billable bookings, a PDF invoice attachment.
+4. The booking is created with status **Booked**. The guest receives a confirmation email and, for billable bookings, a PDF invoice attachment. Active Accommodation Officers/Super Admins and the support address also receive a new-booking email.
 5. The officer checks the guest in → **Checked In**, then checks the guest out → **Checked Out**.
 
 Guest requests are separate from bookings and do not reserve rooms until staff complete them. Booking statuses remain Booked, Checked In, Checked Out, or Cancelled.
@@ -156,7 +156,7 @@ Cancellable from Booked or Checked In.
 
 # Invoices
 
-Generated automatically on check-out.
+Generated and emailed automatically on check-out, including when an invoice already exists. The guest and the officer who created the booking receive the PDF.
 
 Recipients: guest and the officer who created the booking.
 
@@ -186,7 +186,7 @@ Today's arrivals, today's departures, occupied rooms, available rooms, outstandi
 
 # Email Notifications
 
-Booking Created, Booking Updated, Booking Cancelled, Invoice Generated.
+Booking Created, Booking Updated, Booking Cancelled, Invoice Generated, Check-in, Check-out, and guest-request acknowledgement/review alerts. Email delivery requires configured SMTP credentials or `BREVO_API_KEY`.
 
 ---
 

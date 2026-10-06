@@ -1,4 +1,4 @@
-const { Invoice } = require('../models');
+const { Invoice, User } = require('../models');
 const ApiError = require('../utils/ApiError');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
@@ -131,17 +131,23 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', no
   });
 
   if (notify) {
-    sendInvoiceEmail(booking, invoice)
-      .then((sent) => sent ? auditService.record({
-        action: AUDIT_ACTIONS.EMAIL_SENT,
-        booking,
-        actorType: ACTOR_TYPE.SYSTEM,
-        metadata: { emailType: 'Invoice Generated', to: booking.guest.email },
-        message: `Invoice email dispatched for ${booking.bookingReference}.`,
-      }) : logger.warn(`Invoice email delivery failed for ${booking.bookingReference}.`))
-      .catch((error) => {
-        logger.warn(`Invoice email failed: ${error.message}`);
-      });
+    try {
+      const sent = await sendInvoiceEmail(booking, invoice);
+      if (sent) {
+        const recipients = await getInvoiceRecipients(booking, invoice);
+        await auditService.record({
+          action: AUDIT_ACTIONS.EMAIL_SENT,
+          booking,
+          actorType: ACTOR_TYPE.SYSTEM,
+          metadata: { emailType: 'Invoice Generated', to: recipients },
+          message: `Invoice email dispatched for ${booking.bookingReference}.`,
+        });
+      } else {
+        logger.warn(`Invoice email delivery failed for ${booking.bookingReference}.`);
+      }
+    } catch (error) {
+      logger.error(`Invoice email failed for ${booking.bookingReference}: ${error.message}`);
+    }
   }
 
   return invoice;
@@ -316,13 +322,22 @@ const generateInvoicePdfBuffer = (invoice) =>
     doc.end();
   });
 
+const getInvoiceRecipients = async (booking, invoice) => {
+  let creatorEmail = booking.createdBy?.email;
+  if (!creatorEmail && booking.createdBy) {
+    creatorEmail = (await User.findById(booking.createdBy).select('email').lean())?.email;
+  }
+  return [...new Set([invoice.guest?.email, booking.guest?.email, creatorEmail].filter(Boolean))];
+};
+
 const sendInvoiceEmail = async (booking, invoice) => {
   const content = await generateInvoicePdfBuffer(invoice);
+  const recipients = await getInvoiceRecipients(booking, invoice);
   return emailService.sendInvoiceGenerated(booking, invoice, {
     filename: `${invoice.invoiceNumber || 'invoice'}.pdf`,
     content,
     contentType: 'application/pdf',
-  });
+  }, recipients);
 };
 
 module.exports = {
@@ -332,6 +347,7 @@ module.exports = {
   listInvoices,
   getInvoiceById,
   resendInvoiceEmail: sendInvoiceEmail,
+  sendInvoiceEmail,
   updatePaymentStatus,
   generateInvoicePdfBuffer,
 };

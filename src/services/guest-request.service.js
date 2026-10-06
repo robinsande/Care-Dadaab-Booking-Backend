@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 const crypto = require('crypto');
 const mouService = require('./mou.service');
 const rateService = require('./rate.service');
+const env = require('../config/env');
 
 const REQUEST_TYPES = ['booking', 'adjustment', 'early_checkout', 'extension'];
 
@@ -16,7 +17,7 @@ const staffRecipients = async () => {
     isActive: true,
     role: { $in: ['Super Admin', 'Accommodation Officer'] },
   }).select('email').lean();
-  return [...new Set(users.map((user) => user.email).filter(Boolean))];
+  return [...new Set([...users.map((user) => user.email), env.support.email].filter(Boolean))];
 };
 
 const deleteForStaff = async (requestId) => {
@@ -25,7 +26,10 @@ const deleteForStaff = async (requestId) => {
   return { requestId: request._id };
 };
 
-const notify = async (request, guest, { bookingRequestSubmitted = false } = {}) => {
+const notify = async (request, guest, {
+  bookingRequestSubmitted = false,
+  staffRequestSubmitted = false,
+} = {}) => {
   try {
     if (bookingRequestSubmitted) {
       const guestEmail = emailService.sendGuestBookingRequestConfirmation(request, guest);
@@ -44,8 +48,20 @@ const notify = async (request, guest, { bookingRequestSubmitted = false } = {}) 
       return;
     }
 
-    const sent = await emailService.sendGuestRequestNotification(request, guest);
+    const guestEmail = emailService.sendGuestRequestNotification(request, guest);
+    let staffEmail = Promise.resolve(true);
+    if (staffRequestSubmitted) {
+      try {
+        const recipients = await staffRecipients();
+        staffEmail = emailService.sendStaffGuestRequestNotification(request, guest, recipients);
+      } catch (error) {
+        logger.error(`Unable to resolve staff recipients for guest request ${request._id}: ${error.message}`);
+        staffEmail = Promise.resolve(false);
+      }
+    }
+    const [sent, staffSent] = await Promise.all([guestEmail, staffEmail]);
     if (!sent) logger.warn(`Guest request update email failed for request ${request._id}.`);
+    if (!staffSent) logger.warn(`Staff guest request notification failed for request ${request._id}.`);
   } catch (error) {
     logger.error(`Guest request notification failed for request ${request._id}: ${error.message}`);
   }
@@ -183,7 +199,8 @@ const createBookingRequestForGuest = async (guest, payload) => {
     reason: payload.reason || '',
     requestedData,
   });
-  await notify(request, guest);
+  await request.populate('booking', 'bookingReference');
+  await notify(request, guest, { staffRequestSubmitted: true });
   return request;
 };
 

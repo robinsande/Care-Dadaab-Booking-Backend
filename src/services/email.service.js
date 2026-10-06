@@ -422,7 +422,7 @@ const sendBookingReminder = (booking, type, invoice = null, recipients = booking
   });
 };
 
-const sendInvoiceGenerated = async (booking, invoice, invoicePdf) => {
+const sendInvoiceGenerated = async (booking, invoice, invoicePdf, recipients = invoice.guest.email) => {
   const payment = invoice.paymentInstructions || {};
   const body = `
     <p>Dear ${invoice.guest.firstName},</p>
@@ -447,7 +447,7 @@ const sendInvoiceGenerated = async (booking, invoice, invoicePdf) => {
   const subject = `Invoice ${invoice.invoiceNumber} - ${invoice.bookingReference}`;
 
   return sendEmail({
-    to: invoice.guest.email || booking.guest.email,
+    to: recipients || invoice.guest.email || booking.guest.email,
     subject,
     html,
     attachments: invoicePdf ? [invoicePdf] : [],
@@ -565,6 +565,68 @@ const sendStaffGuestBookingRequestNotification = (request, guest, recipients = [
   });
 };
 
+const sendStaffGuestRequestNotification = (request, guest, recipients = []) => {
+  const guestName = `${guest?.firstName || ''} ${guest?.lastName || ''}`.trim() || 'Guest';
+  const reference = request.booking?.bookingReference || 'Guest portal request';
+  const body = `
+    <p>A guest portal request requires review.</p>
+    ${detailRow('Request Type', escapeHtml(request.type))}
+    ${detailRow('Guest', escapeHtml(guestName))}
+    ${detailRow('Guest Email', escapeHtml(guest?.email || ''))}
+    ${detailRow('Phone', escapeHtml(guest?.phone || ''))}
+    ${detailRow('Booking Reference', escapeHtml(reference))}
+    ${request.reason ? detailRow('Reason', escapeHtml(request.reason)) : ''}
+    ${request.requestedData?.newDepartureDate ? detailRow('Requested Departure Date', escapeHtml(formatDate(request.requestedData.newDepartureDate))) : ''}
+    <p><a href="${guestRequestsUrl}">Review guest portal requests</a></p>
+  `;
+  return sendEmail({
+    to: recipients,
+    subject: `Guest ${request.type} request requires review`,
+    html: layout('Guest Portal Request', body),
+    text: [
+      'A guest portal request requires review.',
+      `Request Type: ${request.type}`,
+      `Guest: ${guestName}`,
+      `Email: ${guest?.email || ''}`,
+      `Booking Reference: ${reference}`,
+      request.reason ? `Reason: ${request.reason}` : '',
+      `Review requests: ${guestRequestsUrl}`,
+    ].filter(Boolean).join('\n'),
+  });
+};
+
+const sendStaffBookingCreatedNotification = (booking, recipients = []) => {
+  const body = `
+    <p>A booking has been created and requires no further room assignment.</p>
+    ${detailRow('Guest', escapeHtml(`${booking.guest.firstName} ${booking.guest.lastName}`.trim()))}
+    ${detailRow('Guest Email', escapeHtml(booking.guest.email))}
+    ${detailRow('Booking Reference', escapeHtml(booking.bookingReference))}
+    ${detailRow('Camp', escapeHtml(booking.campName))}
+    ${detailRow('Room', `Block ${escapeHtml(booking.blockName)} Room ${escapeHtml(booking.roomNumber)}`)}
+    ${detailRow('Arrival Date', escapeHtml(formatDate(booking.arrivalDate)))}
+    ${detailRow('Departure Date', escapeHtml(formatDate(booking.departureDate)))}
+    ${detailRow('Status', escapeHtml(booking.status))}
+    <p><a href="${adminPanelUrl}admin/bookings.html">Open all bookings</a></p>
+  `;
+  return sendEmail({
+    to: recipients,
+    subject: `Booking created - ${booking.bookingReference}`,
+    html: layout('Booking Created', body),
+    text: [
+      'A booking has been created.',
+      `Guest: ${booking.guest.firstName} ${booking.guest.lastName}`,
+      `Guest Email: ${booking.guest.email}`,
+      `Booking Reference: ${booking.bookingReference}`,
+      `Camp: ${booking.campName}`,
+      `Room: Block ${booking.blockName} Room ${booking.roomNumber}`,
+      `Arrival Date: ${formatDate(booking.arrivalDate)}`,
+      `Departure Date: ${formatDate(booking.departureDate)}`,
+      `Status: ${booking.status}`,
+      `Open all bookings: ${adminPanelUrl}admin/bookings.html`,
+    ].join('\n'),
+  });
+};
+
 const sendGuestRequestNotification = (request, guest) => {
   const guestName = guest?.firstName || request.guest?.firstName || 'Guest';
   const reference = request.booking?.bookingReference || request.bookingReference || 'request';
@@ -601,5 +663,7 @@ module.exports = {
   sendGuestPasswordReset,
   sendGuestBookingRequestConfirmation,
   sendStaffGuestBookingRequestNotification,
+  sendStaffGuestRequestNotification,
+  sendStaffBookingCreatedNotification,
   sendGuestRequestNotification,
 };
