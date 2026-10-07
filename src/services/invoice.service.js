@@ -1,4 +1,4 @@
-const { Invoice, User } = require('../models');
+const { Invoice, Receipt, User } = require('../models');
 const ApiError = require('../utils/ApiError');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
@@ -40,6 +40,9 @@ const buildInvoiceSnapshot = async (booking) => {
   const paymentInstructions = {
     mpesaTillNumber: settings.payment?.mpesaTillNumber || settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
     mpesaPaybillNumber: settings.payment?.mpesaPaybillNumber || env.daraja.c2bShortCode || '',
+    bankName: settings.payment?.bankName || '',
+    bankAccountName: settings.payment?.bankAccountName || '',
+    bankAccountNumber: settings.payment?.bankAccountNumber || '',
   };
   return {
     bookingReference: booking.bookingReference,
@@ -214,10 +217,6 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
   if (isNonBillableCareStaff(invoice.guest) || isIntercompanyCareStaffLongStay(invoice)) {
     throw ApiError.badRequest('CARE Kenya staff accommodation is billed through the organisation.');
   }
-  const paymentCompleted =
-    paymentStatus === INVOICE_PAYMENT_STATUS.PAID
-    && invoice.paymentStatus !== INVOICE_PAYMENT_STATUS.PAID;
-
   invoice.paymentStatus = paymentStatus;
   invoice.paymentCheckoutRequestId =
     paymentDetails.checkoutRequestId || invoice.paymentCheckoutRequestId;
@@ -229,11 +228,8 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
   }
   await invoice.save();
 
-  if (paymentCompleted) {
-    const emailSent = await emailService.sendInvoicePaid(invoice);
-    if (!emailSent) {
-      logger.warn(`Paid invoice email was not sent for ${invoice.invoiceNumber}.`);
-    }
+  if (paymentStatus === INVOICE_PAYMENT_STATUS.PAID) {
+    await sendPaidReceipt(invoice);
   }
 
   return invoice;
@@ -242,85 +238,263 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
 const formatMoney = (amount, currency = 'KES') =>
   `${currency} ${Number(amount).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const formatDocumentDate = (value) =>
+  value
+    ? new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—';
+
+const drawPdfText = (doc, value, x, y, width, options = {}) => {
+  doc.font(options.bold ? 'Helvetica-Bold' : 'Helvetica')
+    .fontSize(options.size || 10)
+    .fillColor(options.color || '#333333')
+    .text(String(value ?? '—'), x, y, {
+      width,
+      align: options.align || 'left',
+      lineBreak: false,
+      ellipsis: true,
+    });
+};
+
+const drawPdfRule = (doc, x, y, width, color = '#b8b8b8') => {
+  doc.moveTo(x, y).lineTo(x + width, y).lineWidth(0.6).strokeColor(color).stroke();
+};
+
 const generateInvoicePdfBuffer = (invoice) =>
   new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 0, size: 'A4' });
     const chunks = [];
     const guest = invoice.guest || {};
     const payment = invoice.paymentInstructions || {};
     const logoPath = path.resolve(__dirname, '../../assets/care-logo.png');
+    const pageWidth = doc.page.width;
+    const left = 38;
+    const right = pageWidth - left;
+    const contentWidth = right - left;
+    const isPaid = String(invoice.paymentStatus || '').toLowerCase() === 'paid';
+    const currency = invoice.appliedRate?.currency || 'KES';
+    const rate = Number(invoice.appliedRate?.amount || 0);
+    const quantity = Number(invoice.durationMonths || invoice.numberOfNights || 0);
+    const extensionCost = Number(invoice.extensionCost || 0);
+    const total = Number(invoice.totalAmount ?? rate * quantity);
+    const accommodationAmount = total - extensionCost;
+    const receiptNumber = `RCPT-${invoice.invoiceNumber || invoice.bookingReference || '—'}`;
+    const dateLabel = formatDocumentDate(
+      isPaid ? invoice.paidAt || invoice.generatedAt : invoice.generatedAt || invoice.createdAt,
+    );
+    const lineDescription = [
+      invoice.stayType || 'Accommodation',
+      invoice.campName,
+      invoice.blockName && `Block ${invoice.blockName}`,
+      invoice.roomNumber && `Room ${invoice.roomNumber}`,
+    ].filter(Boolean).join(' · ');
+    const systemName = 'CARE Kenya Dadaab Accommodation Management System';
+    const supportContact = [env.support.email, env.support.phone].filter(Boolean).join(' · ');
 
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    let logoFits = fs.existsSync(logoPath);
-    const LOGO_WIDTH = 140;
-    const LOGO_HEIGHT = 60;
-    let currentY = doc.y;
+    const drawLogo = (x, y, maxWidth, maxHeight) => {
+      if (!fs.existsSync(logoPath)) return;
+      doc.image(logoPath, x, y, { fit: [maxWidth, maxHeight] });
+    };
+    const drawBand = (x, y, width, height, color, text) => {
+      doc.rect(x, y, width, height).fill(color);
+      drawPdfText(doc, text, x + 10, y + 7, width - 20, {
+        bold: true, size: 10, color: '#ffffff', align: 'center',
+      });
+    };
+    const drawTableHeader = (y) => {
+      const columns = [left, left + 40, left + 40 + contentWidth * 0.53, right - 128, right];
+      doc.rect(left, y, contentWidth, 27).fill(isPaid ? '#355b68' : '#145092');
+      drawPdfText(doc, '#', columns[0] + 7, y + 8, 28, { bold: true, color: '#ffffff' });
+      drawPdfText(doc, 'Items', columns[1] + 7, y + 8, columns[2] - columns[1] - 12, { bold: true, color: '#ffffff' });
+      drawPdfText(doc, 'Quantity', columns[2] + 4, y + 8, columns[3] - columns[2] - 8, { bold: true, color: '#ffffff', align: 'right' });
+      drawPdfText(doc, 'Rate', columns[3] + 4, y + 8, columns[4] - columns[3] - 58, { bold: true, color: '#ffffff', align: 'right' });
+      drawPdfText(doc, 'Amount', columns[4] - 54, y + 8, 47, { bold: true, color: '#ffffff', align: 'right' });
+      return columns;
+    };
+    const drawTableRow = (columns, y, number, description, qty, unitRate, amount, height = 34) => {
+      doc.rect(left, y, contentWidth, height).lineWidth(0.6).strokeColor('#b8b8b8').stroke();
+      [columns[1], columns[2], columns[3], columns[4]].forEach((x) => {
+        doc.moveTo(x, y).lineTo(x, y + height).lineWidth(0.6).strokeColor('#b8b8b8').stroke();
+      });
+      drawPdfText(doc, number, columns[0] + 7, y + 9, 28, { size: 8 });
+      drawPdfText(doc, description, columns[1] + 7, y + 8, columns[2] - columns[1] - 12, { bold: true, size: 8 });
+      drawPdfText(doc, qty, columns[2] + 4, y + 9, columns[3] - columns[2] - 8, { size: 8, align: 'right' });
+      drawPdfText(doc, unitRate, columns[3] + 4, y + 9, columns[4] - columns[3] - 58, { size: 8, align: 'right' });
+      drawPdfText(doc, amount, columns[4] - 54, y + 9, 47, { size: 8, align: 'right' });
+      return y + height;
+    };
 
-    if (logoFits) {
-      try {
-        doc.image(logoPath, doc.x, currentY, { width: LOGO_WIDTH, height: LOGO_HEIGHT });
-        currentY += LOGO_HEIGHT + 8;
-      } catch (_) {
-        logoFits = false;
+    if (isPaid) {
+      doc.roundedRect(left, 0, contentWidth, 128, 12).fill('#355b68');
+      drawLogo(left + 14, 14, 108, 44);
+      drawPdfText(doc, systemName, left + 14, 68, contentWidth * 0.52, { bold: true, size: 11, color: '#ffffff' });
+      drawPdfText(doc, 'Dadaab, Kenya', left + 14, 86, contentWidth * 0.52, { size: 9, color: '#ffffff' });
+      drawPdfText(doc, 'PAYMENT RECEIPT', right - 230, 46, 210, { bold: true, size: 20, color: '#ffffff', align: 'right' });
+      drawPdfText(doc, receiptNumber, right - 230, 76, 210, { bold: true, size: 10, color: '#ffffff', align: 'right' });
+
+      drawBand(left, 144, contentWidth, 24, '#355b68', 'Payment Receipt Details');
+      doc.rect(left, 168, contentWidth, 72).lineWidth(0.7).strokeColor('#b8b8b8').stroke();
+      doc.moveTo(left + contentWidth * 0.55, 168).lineTo(left + contentWidth * 0.55, 240).strokeColor('#b8b8b8').stroke();
+      drawPdfText(doc, 'Customer Name', left + 8, 181, contentWidth * 0.52, { bold: true, size: 9 });
+      drawPdfText(doc, `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || 'Guest', left + 8, 199, contentWidth * 0.52, { size: 10 });
+      drawPdfText(doc, `Receipt #: ${receiptNumber}`, left + contentWidth * 0.55 + 8, 178, contentWidth * 0.43, { size: 8 });
+      drawPdfText(doc, `Currency: ${currency}`, left + contentWidth * 0.55 + 8, 197, contentWidth * 0.2, { size: 8 });
+      drawPdfText(doc, `Date: ${dateLabel}`, left + contentWidth * 0.76, 197, contentWidth * 0.22, { size: 8 });
+      drawPdfText(doc, `Payment: ${invoice.paymentMethod || 'Recorded payment'}`, left + contentWidth * 0.55 + 8, 217, contentWidth * 0.43, { size: 8 });
+      drawBand(left, 250, contentWidth, 23, '#355b68', 'Booking and Accommodation');
+      doc.rect(left, 273, contentWidth, 48).lineWidth(0.7).strokeColor('#b8b8b8').stroke();
+      drawPdfText(doc, `Booking Reference: ${invoice.bookingReference || '—'}`, left + 8, 284, contentWidth * 0.48, { size: 8 });
+      drawPdfText(doc, `Camp: ${invoice.campName || '—'}  ·  Room: ${invoice.blockName || '—'} / ${invoice.roomNumber || '—'}`, left + 8, 301, contentWidth - 16, { size: 8 });
+      drawPdfText(doc, `Stay: ${formatDocumentDate(invoice.arrivalDate)} — ${formatDocumentDate(invoice.departureDate)}`, left + contentWidth * 0.52, 284, contentWidth * 0.46, { size: 8 });
+      let tableY = 337;
+      const columns = drawTableHeader(tableY);
+      tableY = drawTableRow(
+        columns, tableY + 27, 1, lineDescription, `${quantity} ${invoice.durationMonths ? 'months' : 'nights'}`,
+        formatMoney(rate, currency), formatMoney(accommodationAmount, currency), 40,
+      );
+      if (extensionCost > 0) {
+        tableY = drawTableRow(columns, tableY, 2, 'Approved accommodation extensions', '—', '—', formatMoney(extensionCost, currency), 30);
       }
-    }
-
-    doc.save();
-    doc.font('Helvetica-Bold').fontSize(20).fillColor('#E87722');
-    if (logoFits) {
-      doc.text('CARE Accommodation Invoice', doc.x + LOGO_WIDTH + 16, doc.y + 8, { lineGap: 4 });
+      tableY += 16;
+      doc.rect(right - 218, tableY, 218, 29).lineWidth(0.6).strokeColor('#b8b8b8').stroke();
+      drawPdfText(doc, 'Sub Total', right - 210, tableY + 9, 115, { bold: true, size: 8 });
+      drawPdfText(doc, formatMoney(total, currency), right - 95, tableY + 9, 87, { size: 8, align: 'right' });
+      doc.rect(right - 218, tableY + 29, 218, 38).fill('#355b68');
+      drawPdfText(doc, 'Total Paid', right - 210, tableY + 42, 115, { bold: true, size: 9, color: '#ffffff' });
+      drawPdfText(doc, formatMoney(total, currency), right - 95, tableY + 42, 87, { bold: true, size: 9, color: '#ffffff', align: 'right' });
+      drawPdfRule(doc, left, tableY + 84, contentWidth);
+      drawPdfText(doc, 'Notes', left, tableY + 96, contentWidth * 0.52, { bold: true, size: 9 });
+      drawPdfText(doc, 'Payment received in full. Please retain this receipt for your records.', left, tableY + 113, contentWidth * 0.52, { size: 8 });
+      drawPdfText(doc, 'Payment Reference', left, tableY + 139, contentWidth * 0.52, { bold: true, size: 9 });
+      drawPdfText(doc, invoice.paymentTransactionId || invoice.bookingReference || '—', left, tableY + 156, contentWidth * 0.52, { size: 8 });
+      drawPdfText(doc, 'Thank You!', right - 230, tableY + 137, 210, { size: 24, color: '#0e2540', align: 'right' });
+      drawPdfText(doc, `CARE Kenya · ${supportContact}`, left, 802, contentWidth, { size: 7, color: '#666666', align: 'center' });
     } else {
-      doc.text('CARE Accommodation Invoice', doc.x, currentY, { underline: true });
-      currentY += 18;
-    }
-    doc.restore();
-    doc.moveDown(1);
+      doc.moveTo(0, 0).lineTo(pageWidth, 0).lineTo(pageWidth, 122)
+        .bezierCurveTo(pageWidth * 0.72, 174, pageWidth * 0.34, 112, 0, 180)
+        .closePath().fill('#145092');
+      drawLogo(left, 24, 112, 44);
+      drawPdfText(doc, 'INVOICE', left, 91, 220, { bold: true, size: 27, color: '#ffffff' });
+      drawPdfText(doc, `NO: ${invoice.invoiceNumber || '—'}`, right - 230, 103, 220, { bold: true, size: 13, color: '#ffffff', align: 'right' });
+      drawPdfText(doc, 'CARE Kenya · Dadaab Accommodation Management System', left, 187, contentWidth, { bold: true, size: 9, color: '#145092' });
 
-    doc.y = Math.max(currentY + 10, doc.y);
-    doc.fontSize(11);
-    doc.text(`Invoice Number: ${invoice.invoiceNumber}`);
-    doc.text(`Booking Reference: ${invoice.bookingReference}`);
-    doc.text(`Issue Date: ${new Date(invoice.generatedAt || invoice.createdAt).toLocaleDateString('en-GB')}`);
-    doc.moveDown();
+      const guestName = `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || 'Guest';
+      drawPdfText(doc, 'Bill To:', left, 215, contentWidth * 0.48, { bold: true, size: 14, color: '#555555' });
+      drawPdfText(doc, guestName, left, 239, contentWidth * 0.48, { size: 11, color: '#666666' });
+      drawPdfText(doc, guest.email || '', left, 257, contentWidth * 0.48, { size: 9, color: '#666666' });
+      drawPdfText(doc, guest.phone || '', left, 274, contentWidth * 0.48, { size: 9, color: '#666666' });
+      drawPdfText(doc, invoice.bookingReference || '—', left, 291, contentWidth * 0.48, { size: 9, color: '#666666' });
+      drawPdfText(doc, 'From:', right - contentWidth * 0.48, 215, contentWidth * 0.48, { bold: true, size: 14, color: '#555555', align: 'right' });
+      drawPdfText(doc, 'CARE Kenya — Dadaab', right - contentWidth * 0.48, 239, contentWidth * 0.48, { size: 11, color: '#666666', align: 'right' });
+      drawPdfText(doc, systemName, right - contentWidth * 0.48, 257, contentWidth * 0.48, { size: 8, color: '#666666', align: 'right' });
+      drawPdfText(doc, supportContact, right - contentWidth * 0.48, 274, contentWidth * 0.48, { size: 8, color: '#666666', align: 'right' });
+      drawPdfText(doc, `Date: ${dateLabel}`, left, 322, contentWidth, { size: 10, color: '#666666' });
+      drawPdfText(doc, `Stay: ${formatDocumentDate(invoice.arrivalDate)} — ${formatDocumentDate(invoice.departureDate)}  ·  ${invoice.campName || '—'}  ·  Block ${invoice.blockName || '—'} / Room ${invoice.roomNumber || '—'}`, left, 342, contentWidth, { size: 8, color: '#555555' });
 
-    doc.fontSize(13).text('Guest', { underline: true });
-    doc.fontSize(11);
-    doc.text(`${guest.firstName || ''} ${guest.lastName || ''}`.trim());
-    if (guest.email) doc.text(`Email: ${guest.email}`);
-    if (guest.phone) doc.text(`Phone: ${guest.phone}`);
-    if (guest.organisation) doc.text(`Organisation: ${guest.organisation}`);
-    doc.moveDown();
-
-    doc.fontSize(13).text('Stay Details', { underline: true });
-    doc.fontSize(11);
-    doc.text(`Camp: ${invoice.campName}`);
-    doc.text(`Block: ${invoice.blockName}`);
-    doc.text(`Room: ${invoice.roomNumber}`);
-    doc.text(`Stay Type: ${invoice.stayType}`);
-    doc.text(`Arrival: ${new Date(invoice.arrivalDate).toLocaleDateString('en-GB')}`);
-    doc.text(`Departure: ${new Date(invoice.departureDate).toLocaleDateString('en-GB')}`);
-    doc.text(`Nights: ${invoice.numberOfNights}`);
-    doc.moveDown();
-
-    const currency = invoice.appliedRate?.currency || 'KES';
-    doc.fontSize(13).text('Charges', { underline: true });
-    doc.fontSize(11);
-    doc.text(`Rate: ${formatMoney(invoice.appliedRate?.amount, currency)} per ${invoice.appliedRate?.ratePeriod === 'per_month' ? 'month' : 'night'}`);
-    doc.text(`Total: ${formatMoney(invoice.totalAmount, currency)}`);
-    doc.moveDown();
-
-    doc.fontSize(13).text('Payment Instructions', { underline: true });
-    doc.fontSize(11);
-    if (payment.mpesaTillNumber || payment.mpesaPaybillNumber) {
-      doc.text(`M-Pesa Till: ${payment.mpesaTillNumber || payment.mpesaPaybillNumber}`);
-      doc.text(`Till Account / Reference: ${invoice.bookingReference}`);
+      let tableY = 370;
+      const columns = drawTableHeader(tableY);
+      tableY = drawTableRow(
+        columns, tableY + 27, 1, lineDescription, `${quantity} ${invoice.durationMonths ? 'months' : 'nights'}`,
+        formatMoney(rate, currency), formatMoney(accommodationAmount, currency), 40,
+      );
+      if (extensionCost > 0) {
+        tableY = drawTableRow(columns, tableY, 2, 'Approved accommodation extensions', '—', '—', formatMoney(extensionCost, currency), 30);
+      }
+      tableY += 16;
+      doc.rect(right - 218, tableY, 218, 29).fill('#145092');
+      drawPdfText(doc, 'Sub Total', right - 210, tableY + 9, 115, { size: 9, color: '#ffffff' });
+      drawPdfText(doc, formatMoney(total, currency), right - 95, tableY + 9, 87, { size: 9, color: '#ffffff', align: 'right' });
+      drawPdfRule(doc, left, tableY + 48, contentWidth);
+      drawPdfText(doc, 'Note:', left, tableY + 62, contentWidth * 0.52, { bold: true, size: 10, color: '#555555' });
+      drawPdfText(doc, 'Please quote the invoice number or booking reference when making payment.', left, tableY + 80, contentWidth * 0.52, { size: 8, color: '#666666' });
+      drawPdfText(doc, 'Payment Information:', left, tableY + 119, contentWidth * 0.52, { bold: true, size: 10, color: '#555555' });
+      const paymentDetails = [
+        payment.mpesaTillNumber || payment.mpesaPaybillNumber ? `M-Pesa Till / Paybill: ${payment.mpesaTillNumber || payment.mpesaPaybillNumber}` : '',
+        payment.bankName ? `Bank: ${payment.bankName}` : '',
+        payment.bankAccountName ? `Account Name: ${payment.bankAccountName}` : '',
+        payment.bankAccountNumber ? `Account Number: ${payment.bankAccountNumber}` : '',
+        `Payment Reference: ${invoice.bookingReference || invoice.invoiceNumber || '—'}`,
+      ].filter(Boolean);
+      paymentDetails.forEach((line, index) => {
+        drawPdfText(doc, line, left, tableY + 137 + index * 16, contentWidth * 0.58, { size: 8, color: '#666666' });
+      });
+      drawPdfText(doc, 'Thank You!', right - 230, tableY + 139, 210, { size: 24, color: '#0e2540', align: 'right' });
+      drawPdfText(doc, supportContact, left, 802, contentWidth, { size: 7, color: '#666666', align: 'center' });
     }
 
     doc.end();
   });
+
+const createOrGetReceipt = async (invoice) => {
+  const existing = await Receipt.findOne({ invoice: invoice._id });
+  if (existing) return existing;
+
+  const pdf = await generateInvoicePdfBuffer(invoice);
+  const snapshot = typeof invoice.toObject === 'function' ? invoice.toObject() : { ...invoice };
+  delete snapshot.__v;
+  try {
+    return await Receipt.create({
+      receiptNumber: `RCPT-${invoice.invoiceNumber || invoice.bookingReference}`,
+      invoice: invoice._id,
+      invoiceNumber: invoice.invoiceNumber,
+      bookingReference: invoice.bookingReference,
+      guestEmail: invoice.guest?.email,
+      amount: invoice.totalAmount,
+      currency: invoice.appliedRate?.currency || 'KES',
+      paidAt: invoice.paidAt || new Date(),
+      paymentMethod: invoice.paymentMethod,
+      transactionId: invoice.paymentTransactionId,
+      paymentPhoneNumber: invoice.paymentPhoneNumber,
+      invoiceSnapshot: snapshot,
+      pdf,
+    });
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+    const racedReceipt = await Receipt.findOne({ invoice: invoice._id });
+    if (!racedReceipt) throw error;
+    return racedReceipt;
+  }
+};
+
+const sendPaidReceipt = async (invoice) => {
+  const receipt = await createOrGetReceipt(invoice);
+  if (receipt.emailStatus === 'sent') return receipt;
+
+  receipt.emailAttemptedAt = new Date();
+  receipt.emailError = '';
+  try {
+    const emailSent = await emailService.sendInvoicePaid(invoice, {
+      filename: `${receipt.receiptNumber}.pdf`,
+      content: receipt.pdf,
+      contentType: 'application/pdf',
+    });
+    receipt.emailStatus = emailSent ? 'sent' : 'failed';
+    receipt.emailSentAt = emailSent ? new Date() : null;
+    if (!emailSent) {
+      receipt.emailError = 'Receipt email delivery failed; retry by saving the invoice as paid again.';
+      logger.warn(`Paid invoice receipt email was not sent for ${invoice.invoiceNumber}.`);
+    }
+    await receipt.save();
+  } catch (error) {
+    receipt.emailStatus = 'failed';
+    receipt.emailSentAt = null;
+    receipt.emailError = error.message;
+    await receipt.save();
+    logger.error(`Paid invoice receipt email failed for ${invoice.invoiceNumber}: ${error.message}`);
+  }
+  return receipt;
+};
+
+const getInvoicePdfBuffer = async (invoice) => {
+  if (String(invoice.paymentStatus || '').toLowerCase() === 'paid' && invoice._id) {
+    const receipt = await Receipt.findOne({ invoice: invoice._id }).select('pdf').lean();
+    if (receipt?.pdf) return Buffer.from(receipt.pdf);
+  }
+  return generateInvoicePdfBuffer(invoice);
+};
 
 const getInvoiceRecipients = async (booking, invoice) => {
   let creatorEmail = booking.createdBy?.email;
@@ -350,4 +524,5 @@ module.exports = {
   sendInvoiceEmail,
   updatePaymentStatus,
   generateInvoicePdfBuffer,
+  getInvoicePdfBuffer,
 };

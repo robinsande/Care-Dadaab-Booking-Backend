@@ -11,11 +11,15 @@ const getInvoice = asyncHandler(async (req, res) => {
   const invoice = await invoiceService.getInvoiceById(req.params.id);
 
   if ((req.query.format || '').toLowerCase() === 'pdf') {
-    const pdfBuffer = await invoiceService.generateInvoicePdfBuffer(invoice);
+    const pdfBuffer = await invoiceService.getInvoicePdfBuffer(invoice);
+    const paid = String(invoice.paymentStatus || '').toLowerCase() === 'paid';
+    const filename = paid
+      ? `RCPT-${invoice.invoiceNumber || invoice.bookingReference}.pdf`
+      : `${invoice.invoiceNumber || 'invoice'}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${invoice.invoiceNumber || 'invoice'}.pdf"`
+      `attachment; filename="${filename}"`
     );
     return res.send(pdfBuffer);
   }

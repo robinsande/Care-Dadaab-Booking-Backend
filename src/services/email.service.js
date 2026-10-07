@@ -486,37 +486,43 @@ const sendInvoiceGenerated = async (booking, invoice, invoicePdf, recipients = i
   });
 };
 
-const sendInvoicePaid = (invoice) => {
+const sendInvoicePaid = (invoice, receiptPdf) => {
   const guest = invoice.guest || {};
   const currency = invoice.appliedRate?.currency || 'KES';
   const paidAt = invoice.paidAt || new Date();
+  const receiptNumber = `RCPT-${invoice.invoiceNumber || invoice.bookingReference || '—'}`;
   const body = `
     <p>Dear ${guest.firstName || 'Guest'},</p>
-    <p>Your pending accommodation invoice has been <strong>paid</strong>.</p>
+    <p>Your accommodation payment has been received. Your payment receipt is attached for your records.</p>
+    ${detailRow('Receipt Number', receiptNumber)}
     ${detailRow('Invoice Number', invoice.invoiceNumber)}
     ${detailRow('Booking Reference', invoice.bookingReference)}
     ${detailRow('Amount Paid', `${currency} ${invoice.totalAmount}`)}
     ${detailRow('Payment Status', invoice.paymentStatus)}
     ${detailRow('Payment Date', formatDate(paidAt))}
-    <p>Thank you. Please keep this confirmation for your records.</p>
+    ${invoice.paymentMethod ? detailRow('Payment Method', escapeHtml(invoice.paymentMethod)) : ''}
+    <p>Thank you for choosing CARE Kenya Dadaab Accommodation. Please keep the attached receipt for your records.</p>
   `;
 
   return sendEmail({
     to: guest.email,
-    subject: `Payment Confirmed - Invoice ${invoice.invoiceNumber}`,
+    subject: `Payment Receipt ${receiptNumber} - ${invoice.bookingReference}`,
     html: layout('Invoice Payment Confirmed', body),
     text: [
       `Dear ${guest.firstName || 'Guest'},`,
       '',
-      'Your pending accommodation invoice has been paid.',
+      'Your accommodation payment has been received. Your payment receipt is attached.',
+      `Receipt Number: ${receiptNumber}`,
       `Invoice Number: ${invoice.invoiceNumber}`,
       `Booking Reference: ${invoice.bookingReference}`,
       `Amount Paid: ${currency} ${invoice.totalAmount}`,
       `Payment Status: ${invoice.paymentStatus}`,
       `Payment Date: ${formatDate(paidAt)}`,
+      ...(invoice.paymentMethod ? [`Payment Method: ${invoice.paymentMethod}`] : []),
       '',
-      'Thank you. Please keep this confirmation for your records.',
+      'Thank you for choosing CARE Kenya Dadaab Accommodation.',
     ].join('\n'),
+    attachments: receiptPdf ? [receiptPdf] : [],
   });
 };
 

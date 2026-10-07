@@ -168,6 +168,8 @@ Payment instructions are global settings (M-Pesa paybill, bank details). Payment
 
 Invoice payment status: Unpaid, Paid, Waived (for outstanding invoice tracking).
 
+When an invoice becomes Paid, the system creates a numbered payment receipt, stores the receipt PDF and an invoice/payment snapshot in `receipts`, and emails the PDF to the guest. Receipt records retain payment identifiers and email delivery status for audit and retry. Printing and downloading use the same generated PDF; for paid invoices this is the saved receipt.
+
 ---
 
 # Reports (Super Admin only)

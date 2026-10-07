@@ -90,6 +90,8 @@ All endpoints require JWT except `POST /auth/login`.
 ### Invoices
 - `GET /invoices`, `GET /invoices/:id`
 - `PATCH /invoices/:id/payment-status`
+- Marking an invoice Paid creates a numbered receipt, stores its PDF and payment/invoice snapshot for audit, and emails the receipt PDF to the guest.
+- Print and Download use the same server-generated PDF; paid invoices return the saved receipt PDF.
 
 ### Dashboard
 - `GET /dashboard`

@@ -9,6 +9,7 @@ module.exports = {
   Booking: require('./Booking'),
   Rate: require('./Rate'),
   Invoice: require('./Invoice'),
+  Receipt: require('./Receipt'),
   Settings: require('./Settings'),
   AuditLog: require('./AuditLog'),
   MpesaTransaction: require('./MpesaTransaction'),

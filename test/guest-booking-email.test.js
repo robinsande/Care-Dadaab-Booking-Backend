@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const env = require('../src/config/env');
 const emailService = require('../src/services/email.service');
-const { GuestRequest, Booking, User, ReminderLog } = require('../src/models');
+const { GuestRequest, Booking, User, ReminderLog, Invoice, Receipt } = require('../src/models');
 const invoiceService = require('../src/services/invoice.service');
 const auditService = require('../src/services/audit.service');
 const bookingService = require('../src/services/booking.service');
@@ -119,6 +119,99 @@ test('booking confirmation sends its PDF invoice to the guest email', async (t) 
   assert.deepEqual(message.to, [{ email: booking.guest.email }]);
   assert.deepEqual(message.attachments, [{ name: invoicePdf.filename, content: 'JVBERg==' }]);
   assert.match(message.subject, /Booking Confirmed and Invoice/);
+});
+
+test('marking an invoice paid generates and sends its receipt only on the paid transition', async (t) => {
+  const originalFindById = Invoice.findById;
+  const originalFindReceipt = Receipt.findOne;
+  const originalCreateReceipt = Receipt.create;
+  const originalSendInvoicePaid = emailService.sendInvoicePaid;
+  let storedReceipt = null;
+  const invoice = {
+    invoiceNumber: 'INV-000002',
+    bookingReference: 'CARE-20261101-000002',
+    guest: { firstName: 'Amina', lastName: 'Guest', email: 'amina@example.org' },
+    campName: 'Dadaab',
+    blockName: 'A',
+    roomNumber: '1',
+    arrivalDate: new Date('2026-11-01'),
+    departureDate: new Date('2026-11-03'),
+    numberOfNights: 2,
+    stayType: 'Short Stay',
+    appliedRate: { currency: 'KES', amount: 1500, ratePeriod: 'per_night' },
+    totalAmount: 3000,
+    paymentInstructions: {},
+    paymentStatus: 'Unpaid',
+    save: async () => {},
+  };
+  const sentReceipts = [];
+  Invoice.findById = async () => invoice;
+  Receipt.findOne = async () => storedReceipt;
+  Receipt.create = async (data) => {
+    storedReceipt = {
+      ...data,
+      emailStatus: 'pending',
+      save: async () => {},
+    };
+    return storedReceipt;
+  };
+  emailService.sendInvoicePaid = async (_paidInvoice, receipt) => {
+    sentReceipts.push(receipt);
+    return true;
+  };
+  t.after(() => {
+    Invoice.findById = originalFindById;
+    Receipt.findOne = originalFindReceipt;
+    Receipt.create = originalCreateReceipt;
+    emailService.sendInvoicePaid = originalSendInvoicePaid;
+  });
+
+  await invoiceService.updatePaymentStatus('invoice-id', 'Paid', { paymentMethod: 'Cash' });
+  await invoiceService.updatePaymentStatus('invoice-id', 'Paid', { paymentMethod: 'Cash' });
+
+  assert.equal(sentReceipts.length, 1);
+  assert.equal(sentReceipts[0].filename, 'RCPT-INV-000002.pdf');
+  assert.equal(sentReceipts[0].contentType, 'application/pdf');
+  assert.equal(sentReceipts[0].content.subarray(0, 4).toString(), '%PDF');
+  assert.equal(invoice.paymentMethod, 'Cash');
+  assert.equal(storedReceipt.receiptNumber, 'RCPT-INV-000002');
+  assert.equal(storedReceipt.emailStatus, 'sent');
+  assert.equal(storedReceipt.invoiceSnapshot.paymentStatus, 'Paid');
+  assert.deepEqual(storedReceipt.pdf, sentReceipts[0].content);
+});
+
+test('paid invoice email includes the generated receipt PDF', async (t) => {
+  const originalFetch = global.fetch;
+  const originalApiKey = env.brevoApiKey;
+  let message;
+  env.brevoApiKey = 'test-api-key';
+  global.fetch = async (_url, options) => {
+    message = JSON.parse(options.body);
+    return { ok: true };
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+    env.brevoApiKey = originalApiKey;
+  });
+
+  const receipt = { filename: 'INV-000003-receipt.pdf', content: Buffer.from('%PDF receipt') };
+  assert.equal(await emailService.sendInvoicePaid({
+    invoiceNumber: 'INV-000003',
+    bookingReference: 'CARE-20261101-000003',
+    guest: { firstName: 'Amina', email: 'amina@example.org' },
+    paymentStatus: 'Paid',
+    paymentMethod: 'M-Pesa STK Push',
+    paidAt: new Date('2026-11-03'),
+    appliedRate: { currency: 'KES' },
+    totalAmount: 3000,
+  }, receipt), true);
+
+  assert.deepEqual(message.to, [{ email: 'amina@example.org' }]);
+  assert.deepEqual(message.attachments, [{
+    name: receipt.filename,
+    content: receipt.content.toString('base64'),
+  }]);
+  assert.match(message.subject, /Payment Receipt RCPT-INV-000003/);
 });
 
 test('guest portal requests send staff review alerts', async (t) => {
