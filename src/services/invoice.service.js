@@ -17,6 +17,7 @@ const { calculateNights, calculateBillableMonths } = require('../utils/dates');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 
+const RECEIPT_DOCUMENT_VERSION = 2;
 const isNonBillableCareStaff = (guest = {}) =>
   /^(?:care\s*)?staff$/i.test(String(guest.contractType || '').trim());
 
@@ -266,6 +267,7 @@ const generateInvoicePdfBuffer = (invoice) =>
     const guest = invoice.guest || {};
     const payment = invoice.paymentInstructions || {};
     const logoPath = path.resolve(__dirname, '../../assets/care-logo.png');
+    const stampPath = path.resolve(__dirname, '../../assets/care-dadaab-stamp.png');
     const pageWidth = doc.page.width;
     const left = 38;
     const right = pageWidth - left;
@@ -297,6 +299,10 @@ const generateInvoicePdfBuffer = (invoice) =>
     const drawLogo = (x, y, maxWidth, maxHeight) => {
       if (!fs.existsSync(logoPath)) return;
       doc.image(logoPath, x, y, { fit: [maxWidth, maxHeight] });
+    };
+    const drawStamp = (x, y, maxWidth, maxHeight) => {
+      if (!fs.existsSync(stampPath)) return;
+      doc.image(stampPath, x, y, { fit: [maxWidth, maxHeight] });
     };
     const drawBand = (x, y, width, height, color, text) => {
       doc.rect(x, y, width, height).fill(color);
@@ -370,7 +376,8 @@ const generateInvoicePdfBuffer = (invoice) =>
       drawPdfText(doc, 'Payment received in full. Please retain this receipt for your records.', left, tableY + 113, contentWidth * 0.52, { size: 8 });
       drawPdfText(doc, 'Payment Reference', left, tableY + 139, contentWidth * 0.52, { bold: true, size: 9 });
       drawPdfText(doc, invoice.paymentTransactionId || invoice.bookingReference || '—', left, tableY + 156, contentWidth * 0.52, { size: 8 });
-      drawPdfText(doc, 'Thank You!', right - 230, tableY + 137, 210, { size: 24, color: '#0e2540', align: 'right' });
+      drawStamp(right - 142, tableY + 88, 122, 92);
+      drawPdfText(doc, 'Thank You!', right - 288, tableY + 174, 150, { size: 20, color: '#0e2540', align: 'right' });
       drawPdfText(doc, `CARE Kenya · ${supportContact}`, left, 802, contentWidth, { size: 7, color: '#666666', align: 'center' });
     } else {
       doc.moveTo(0, 0).lineTo(pageWidth, 0).lineTo(pageWidth, 122)
@@ -421,7 +428,8 @@ const generateInvoicePdfBuffer = (invoice) =>
       paymentDetails.forEach((line, index) => {
         drawPdfText(doc, line, left, tableY + 137 + index * 16, contentWidth * 0.58, { size: 8, color: '#666666' });
       });
-      drawPdfText(doc, 'Thank You!', right - 230, tableY + 139, 210, { size: 24, color: '#0e2540', align: 'right' });
+      drawStamp(right - 142, tableY + 88, 122, 92);
+      drawPdfText(doc, 'Thank You!', right - 288, tableY + 174, 150, { size: 20, color: '#0e2540', align: 'right' });
       drawPdfText(doc, supportContact, left, 802, contentWidth, { size: 7, color: '#666666', align: 'center' });
     }
 
@@ -429,8 +437,17 @@ const generateInvoicePdfBuffer = (invoice) =>
   });
 
 const createOrGetReceipt = async (invoice) => {
-  const existing = await Receipt.findOne({ invoice: invoice._id });
-  if (existing) return existing;
+  let existing = await Receipt.findOne({ invoice: invoice._id });
+  if (existing) {
+    if (existing.documentVersion !== RECEIPT_DOCUMENT_VERSION) {
+      const snapshot = existing.invoiceSnapshot || (typeof invoice.toObject === 'function' ? invoice.toObject() : { ...invoice });
+      existing.pdf = await generateInvoicePdfBuffer(snapshot);
+      existing.invoiceSnapshot = snapshot;
+      existing.documentVersion = RECEIPT_DOCUMENT_VERSION;
+      await existing.save();
+    }
+    return existing;
+  }
 
   const pdf = await generateInvoicePdfBuffer(invoice);
   const snapshot = typeof invoice.toObject === 'function' ? invoice.toObject() : { ...invoice };
@@ -450,6 +467,7 @@ const createOrGetReceipt = async (invoice) => {
       paymentPhoneNumber: invoice.paymentPhoneNumber,
       invoiceSnapshot: snapshot,
       pdf,
+      documentVersion: RECEIPT_DOCUMENT_VERSION,
     });
   } catch (error) {
     if (error?.code !== 11000) throw error;
@@ -490,8 +508,8 @@ const sendPaidReceipt = async (invoice) => {
 
 const getInvoicePdfBuffer = async (invoice) => {
   if (String(invoice.paymentStatus || '').toLowerCase() === 'paid' && invoice._id) {
-    const receipt = await Receipt.findOne({ invoice: invoice._id }).select('pdf').lean();
-    if (receipt?.pdf) return Buffer.from(receipt.pdf);
+    const receipt = await createOrGetReceipt(invoice);
+    return Buffer.from(receipt.pdf);
   }
   return generateInvoicePdfBuffer(invoice);
 };

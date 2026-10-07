@@ -15,6 +15,7 @@ const receiptSchema = new mongoose.Schema(
     paymentPhoneNumber: { type: String, trim: true },
     invoiceSnapshot: { type: mongoose.Schema.Types.Mixed, required: true },
     pdf: { type: Buffer, required: true },
+    documentVersion: { type: Number, default: 1 },
     emailStatus: {
       type: String,
       enum: ['pending', 'sent', 'failed'],

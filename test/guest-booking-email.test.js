@@ -173,9 +173,12 @@ test('marking an invoice paid generates and sends its receipt only on the paid t
   assert.equal(sentReceipts[0].filename, 'RCPT-INV-000002.pdf');
   assert.equal(sentReceipts[0].contentType, 'application/pdf');
   assert.equal(sentReceipts[0].content.subarray(0, 4).toString(), '%PDF');
+  const pdfObjects = sentReceipts[0].content.toString('latin1');
+  assert.ok((pdfObjects.match(/\/Subtype\s*\/Image\b/g) || []).length >= 2);
   assert.equal(invoice.paymentMethod, 'Cash');
   assert.equal(storedReceipt.receiptNumber, 'RCPT-INV-000002');
   assert.equal(storedReceipt.emailStatus, 'sent');
+  assert.equal(storedReceipt.documentVersion, 2);
   assert.equal(storedReceipt.invoiceSnapshot.paymentStatus, 'Paid');
   assert.deepEqual(storedReceipt.pdf, sentReceipts[0].content);
 });
@@ -212,6 +215,35 @@ test('paid invoice email includes the generated receipt PDF', async (t) => {
     content: receipt.content.toString('base64'),
   }]);
   assert.match(message.subject, /Payment Receipt RCPT-INV-000003/);
+});
+
+test('both unpaid invoices and paid receipts embed the CARE stamp', async () => {
+  const invoice = {
+    invoiceNumber: 'INV-000004',
+    bookingReference: 'CARE-20261101-000004',
+    guest: { firstName: 'Amina', lastName: 'Guest', email: 'amina@example.org' },
+    campName: 'Dadaab',
+    blockName: 'A',
+    roomNumber: '1',
+    arrivalDate: new Date('2026-11-01'),
+    departureDate: new Date('2026-11-03'),
+    numberOfNights: 2,
+    stayType: 'Short Stay',
+    appliedRate: { currency: 'KES', amount: 1500, ratePeriod: 'per_night' },
+    totalAmount: 3000,
+    paymentInstructions: {},
+    paymentStatus: 'Unpaid',
+  };
+  const pdfs = await Promise.all([
+    invoiceService.generateInvoicePdfBuffer(invoice),
+    invoiceService.generateInvoicePdfBuffer({ ...invoice, paymentStatus: 'Paid', paidAt: new Date() }),
+  ]);
+
+  for (const pdf of pdfs) {
+    const pdfObjects = pdf.toString('latin1');
+    assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
+    assert.ok((pdfObjects.match(/\/Subtype\s*\/Image\b/g) || []).length >= 2);
+  }
 });
 
 test('guest portal requests send staff review alerts', async (t) => {

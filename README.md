@@ -92,6 +92,7 @@ All endpoints require JWT except `POST /auth/login`.
 - `PATCH /invoices/:id/payment-status`
 - Marking an invoice Paid creates a numbered receipt, stores its PDF and payment/invoice snapshot for audit, and emails the receipt PDF to the guest.
 - Print and Download use the same server-generated PDF; paid invoices return the saved receipt PDF.
+- The CARE Dadaab stamp is embedded in new invoice/receipt PDFs; older saved receipts are refreshed to the current stamped PDF when accessed.
 
 ### Dashboard
 - `GET /dashboard`
