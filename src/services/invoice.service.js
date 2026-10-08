@@ -18,6 +18,8 @@ const logger = require('../utils/logger');
 const env = require('../config/env');
 
 const RECEIPT_DOCUMENT_VERSION = 2;
+const INVOICE_ACCENT_COLOR = '#54206f';
+const INVOICE_ACCENT_DARK_COLOR = '#351347';
 const isNonBillableCareStaff = (guest = {}) =>
   /^(?:care\s*)?staff$/i.test(String(guest.contractType || '').trim());
 
@@ -260,8 +262,18 @@ const drawPdfRule = (doc, x, y, width, color = '#b8b8b8') => {
   doc.moveTo(x, y).lineTo(x + width, y).lineWidth(0.6).strokeColor(color).stroke();
 };
 
-const generateInvoicePdfBuffer = (invoice) =>
-  new Promise((resolve, reject) => {
+const generateInvoicePdfBuffer = async (invoice) => {
+  const recipientOfficer = invoice.recipientOfficer;
+  let officerEmail = recipientOfficer && typeof recipientOfficer === 'object'
+    ? recipientOfficer.email
+    : null;
+  const officerId = recipientOfficer?._id || recipientOfficer;
+  if (!officerEmail && officerId) {
+    officerEmail = (await User.findById(officerId).select('email').lean())?.email;
+  }
+  const supportContact = [officerEmail || env.support.email, env.support.phone].filter(Boolean).join(' · ');
+
+  return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 0, size: 'A4' });
     const chunks = [];
     const guest = invoice.guest || {};
@@ -290,8 +302,6 @@ const generateInvoicePdfBuffer = (invoice) =>
       invoice.roomNumber && `Room ${invoice.roomNumber}`,
     ].filter(Boolean).join(' · ');
     const systemName = 'CARE Kenya Dadaab Accommodation Management System';
-    const supportContact = [env.support.email, env.support.phone].filter(Boolean).join(' · ');
-
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
@@ -312,7 +322,7 @@ const generateInvoicePdfBuffer = (invoice) =>
     };
     const drawTableHeader = (y) => {
       const columns = [left, left + 40, left + 40 + contentWidth * 0.53, right - 128, right];
-      doc.rect(left, y, contentWidth, 27).fill(isPaid ? '#355b68' : '#145092');
+      doc.rect(left, y, contentWidth, 27).fill(INVOICE_ACCENT_COLOR);
       drawPdfText(doc, '#', columns[0] + 7, y + 8, 28, { bold: true, color: '#ffffff' });
       drawPdfText(doc, 'Items', columns[1] + 7, y + 8, columns[2] - columns[1] - 12, { bold: true, color: '#ffffff' });
       drawPdfText(doc, 'Quantity', columns[2] + 4, y + 8, columns[3] - columns[2] - 8, { bold: true, color: '#ffffff', align: 'right' });
@@ -334,14 +344,14 @@ const generateInvoicePdfBuffer = (invoice) =>
     };
 
     if (isPaid) {
-      doc.roundedRect(left, 0, contentWidth, 128, 12).fill('#355b68');
+      doc.roundedRect(left, 0, contentWidth, 128, 12).fill(INVOICE_ACCENT_COLOR);
       drawLogo(left + 14, 14, 108, 44);
       drawPdfText(doc, systemName, left + 14, 68, contentWidth * 0.52, { bold: true, size: 11, color: '#ffffff' });
       drawPdfText(doc, 'Dadaab, Kenya', left + 14, 86, contentWidth * 0.52, { size: 9, color: '#ffffff' });
       drawPdfText(doc, 'PAYMENT RECEIPT', right - 230, 46, 210, { bold: true, size: 20, color: '#ffffff', align: 'right' });
       drawPdfText(doc, receiptNumber, right - 230, 76, 210, { bold: true, size: 10, color: '#ffffff', align: 'right' });
 
-      drawBand(left, 144, contentWidth, 24, '#355b68', 'Payment Receipt Details');
+      drawBand(left, 144, contentWidth, 24, INVOICE_ACCENT_COLOR, 'Payment Receipt Details');
       doc.rect(left, 168, contentWidth, 72).lineWidth(0.7).strokeColor('#b8b8b8').stroke();
       doc.moveTo(left + contentWidth * 0.55, 168).lineTo(left + contentWidth * 0.55, 240).strokeColor('#b8b8b8').stroke();
       drawPdfText(doc, 'Customer Name', left + 8, 181, contentWidth * 0.52, { bold: true, size: 9 });
@@ -350,7 +360,7 @@ const generateInvoicePdfBuffer = (invoice) =>
       drawPdfText(doc, `Currency: ${currency}`, left + contentWidth * 0.55 + 8, 197, contentWidth * 0.2, { size: 8 });
       drawPdfText(doc, `Date: ${dateLabel}`, left + contentWidth * 0.76, 197, contentWidth * 0.22, { size: 8 });
       drawPdfText(doc, `Payment: ${invoice.paymentMethod || 'Recorded payment'}`, left + contentWidth * 0.55 + 8, 217, contentWidth * 0.43, { size: 8 });
-      drawBand(left, 250, contentWidth, 23, '#355b68', 'Booking and Accommodation');
+      drawBand(left, 250, contentWidth, 23, INVOICE_ACCENT_COLOR, 'Booking and Accommodation');
       doc.rect(left, 273, contentWidth, 48).lineWidth(0.7).strokeColor('#b8b8b8').stroke();
       drawPdfText(doc, `Booking Reference: ${invoice.bookingReference || '—'}`, left + 8, 284, contentWidth * 0.48, { size: 8 });
       drawPdfText(doc, `Camp: ${invoice.campName || '—'}  ·  Room: ${invoice.blockName || '—'} / ${invoice.roomNumber || '—'}`, left + 8, 301, contentWidth - 16, { size: 8 });
@@ -368,7 +378,7 @@ const generateInvoicePdfBuffer = (invoice) =>
       doc.rect(right - 218, tableY, 218, 29).lineWidth(0.6).strokeColor('#b8b8b8').stroke();
       drawPdfText(doc, 'Sub Total', right - 210, tableY + 9, 115, { bold: true, size: 8 });
       drawPdfText(doc, formatMoney(total, currency), right - 95, tableY + 9, 87, { size: 8, align: 'right' });
-      doc.rect(right - 218, tableY + 29, 218, 38).fill('#355b68');
+      doc.rect(right - 218, tableY + 29, 218, 38).fill(INVOICE_ACCENT_COLOR);
       drawPdfText(doc, 'Total Paid', right - 210, tableY + 42, 115, { bold: true, size: 9, color: '#ffffff' });
       drawPdfText(doc, formatMoney(total, currency), right - 95, tableY + 42, 87, { bold: true, size: 9, color: '#ffffff', align: 'right' });
       drawPdfRule(doc, left, tableY + 84, contentWidth);
@@ -382,11 +392,11 @@ const generateInvoicePdfBuffer = (invoice) =>
     } else {
       doc.moveTo(0, 0).lineTo(pageWidth, 0).lineTo(pageWidth, 122)
         .bezierCurveTo(pageWidth * 0.72, 174, pageWidth * 0.34, 112, 0, 180)
-        .closePath().fill('#145092');
+        .closePath().fill(INVOICE_ACCENT_COLOR);
       drawLogo(left, 24, 112, 44);
       drawPdfText(doc, 'INVOICE', left, 91, 220, { bold: true, size: 27, color: '#ffffff' });
       drawPdfText(doc, `NO: ${invoice.invoiceNumber || '—'}`, right - 230, 103, 220, { bold: true, size: 13, color: '#ffffff', align: 'right' });
-      drawPdfText(doc, 'CARE Kenya · Dadaab Accommodation Management System', left, 187, contentWidth, { bold: true, size: 9, color: '#145092' });
+      drawPdfText(doc, 'CARE Kenya · Dadaab Accommodation Management System', left, 187, contentWidth, { bold: true, size: 9, color: INVOICE_ACCENT_DARK_COLOR });
 
       const guestName = `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || 'Guest';
       drawPdfText(doc, 'Bill To:', left, 215, contentWidth * 0.48, { bold: true, size: 14, color: '#555555' });
@@ -411,7 +421,7 @@ const generateInvoicePdfBuffer = (invoice) =>
         tableY = drawTableRow(columns, tableY, 2, 'Approved accommodation extensions', '—', '—', formatMoney(extensionCost, currency), 30);
       }
       tableY += 16;
-      doc.rect(right - 218, tableY, 218, 29).fill('#145092');
+      doc.rect(right - 218, tableY, 218, 29).fill(INVOICE_ACCENT_COLOR);
       drawPdfText(doc, 'Sub Total', right - 210, tableY + 9, 115, { size: 9, color: '#ffffff' });
       drawPdfText(doc, formatMoney(total, currency), right - 95, tableY + 9, 87, { size: 9, color: '#ffffff', align: 'right' });
       drawPdfRule(doc, left, tableY + 48, contentWidth);
@@ -435,6 +445,7 @@ const generateInvoicePdfBuffer = (invoice) =>
 
     doc.end();
   });
+};
 
 const createOrGetReceipt = async (invoice) => {
   let existing = await Receipt.findOne({ invoice: invoice._id });

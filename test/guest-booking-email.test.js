@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const zlib = require('node:zlib');
 const env = require('../src/config/env');
 const emailService = require('../src/services/email.service');
 const { GuestRequest, Booking, User, ReminderLog, Invoice, Receipt } = require('../src/models');
@@ -233,6 +234,7 @@ test('both unpaid invoices and paid receipts embed the CARE stamp', async () => 
     totalAmount: 3000,
     paymentInstructions: {},
     paymentStatus: 'Unpaid',
+    recipientOfficer: { email: 'booking.officer@example.org' },
   };
   const pdfs = await Promise.all([
     invoiceService.generateInvoicePdfBuffer(invoice),
@@ -243,6 +245,14 @@ test('both unpaid invoices and paid receipts embed the CARE stamp', async () => 
     const pdfObjects = pdf.toString('latin1');
     assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
     assert.ok((pdfObjects.match(/\/Subtype\s*\/Image\b/g) || []).length >= 2);
+    const textStreams = [...pdfObjects.matchAll(/\/Filter\s*\/FlateDecode[\s\S]*?stream\r?\n([\s\S]*?)\r?\nendstream/g)]
+      .map(([, stream]) => zlib.inflateSync(Buffer.from(stream, 'latin1')).toString('latin1'))
+      .join('\n');
+    const decodedText = textStreams.replace(/\[((?:\s*<[\da-f]+>\s*(?:-?\d+(?:\.\d+)?\s*)?)+)\]\s*TJ/gi, (_, fragments) =>
+      [...fragments.matchAll(/<([\da-f]+)>/g)]
+        .map(([, hex]) => Buffer.from(hex, 'hex').toString('latin1'))
+        .join(''));
+    assert.match(decodedText, /booking\.officer@example\.org/);
   }
 });
 
