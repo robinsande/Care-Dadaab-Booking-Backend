@@ -1,5 +1,5 @@
 const { query } = require('express-validator');
-const { REPORT_TYPE_VALUES, STAY_TYPE_VALUES } = require('../utils/constants');
+const { REPORT_TYPE_VALUES, STAY_TYPE_VALUES, BOOKING_STATUS_VALUES } = require('../utils/constants');
 const { MOU_CATEGORY_VALUES } = require('../utils/mou');
 
 const reportQueryRules = [
@@ -7,6 +7,7 @@ const reportQueryRules = [
   query('to').optional().isISO8601(),
   query('campId').optional().isMongoId(),
   query('stayType').optional().isIn(STAY_TYPE_VALUES),
+  query('bookingStatus').optional().isIn(BOOKING_STATUS_VALUES),
   query('date').optional().isISO8601(),
   query('period').optional().matches(/^\d{4}(-\d{2})?$/),
   query('year').optional().isInt({ min: 2000, max: 2100 }),
