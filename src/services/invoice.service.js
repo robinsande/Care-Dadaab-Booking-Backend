@@ -598,10 +598,18 @@ const sendPaidReceipt = async (invoice) => {
   receipt.emailAttemptedAt = new Date();
   receipt.emailError = '';
   try {
+    const officerId = invoice.recipientOfficer?._id || invoice.recipientOfficer;
+    const officer = officerId
+      ? await User.findById(officerId).select('email role').lean()
+      : null;
     const emailSent = await emailService.sendInvoicePaid(invoice, {
       filename: `${receipt.receiptNumber}.pdf`,
       content: receipt.pdf,
       contentType: 'application/pdf',
+    }, {
+      cc: officer?.role === ROLES.ACCOMMODATION_OFFICER && officer.email
+        ? [officer.email]
+        : [],
     });
     receipt.emailStatus = emailSent ? 'sent' : 'failed';
     receipt.emailSentAt = emailSent ? new Date() : null;

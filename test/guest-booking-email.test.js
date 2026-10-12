@@ -125,6 +125,7 @@ test('booking confirmation sends its PDF invoice to the guest email', async (t) 
 
 test('marking an invoice paid generates and sends its receipt only on the paid transition', async (t) => {
   const originalFindById = Invoice.findById;
+  const originalFindUserById = User.findById;
   const originalFindReceipt = Receipt.findOne;
   const originalCreateReceipt = Receipt.create;
   const originalSendInvoicePaid = emailService.sendInvoicePaid;
@@ -144,10 +145,16 @@ test('marking an invoice paid generates and sends its receipt only on the paid t
     totalAmount: 3000,
     paymentInstructions: {},
     paymentStatus: 'Unpaid',
+    recipientOfficer: 'officer-id',
     save: async () => {},
   };
   const sentReceipts = [];
   Invoice.findById = async () => invoice;
+  User.findById = () => ({
+    select: () => ({
+      lean: async () => ({ email: 'officer@care.org', role: 'Accommodation Officer' }),
+    }),
+  });
   Receipt.findOne = async () => storedReceipt;
   Receipt.create = async (data) => {
     storedReceipt = {
@@ -157,12 +164,13 @@ test('marking an invoice paid generates and sends its receipt only on the paid t
     };
     return storedReceipt;
   };
-  emailService.sendInvoicePaid = async (_paidInvoice, receipt) => {
-    sentReceipts.push(receipt);
+  emailService.sendInvoicePaid = async (_paidInvoice, receipt, options) => {
+    sentReceipts.push({ ...receipt, options });
     return true;
   };
   t.after(() => {
     Invoice.findById = originalFindById;
+    User.findById = originalFindUserById;
     Receipt.findOne = originalFindReceipt;
     Receipt.create = originalCreateReceipt;
     emailService.sendInvoicePaid = originalSendInvoicePaid;
@@ -175,6 +183,7 @@ test('marking an invoice paid generates and sends its receipt only on the paid t
   assert.equal(sentReceipts[0].filename, 'RCPT-INV-000002.pdf');
   assert.equal(sentReceipts[0].contentType, 'application/pdf');
   assert.equal(sentReceipts[0].content.subarray(0, 4).toString(), '%PDF');
+  assert.deepEqual(sentReceipts[0].options, { cc: ['officer@care.org'] });
   const pdfObjects = sentReceipts[0].content.toString('latin1');
   assert.ok((pdfObjects.match(/\/Subtype\s*\/Image\b/g) || []).length >= 2);
   assert.equal(invoice.paymentMethod, 'Cash');
@@ -379,6 +388,33 @@ test('paid invoice email includes the generated receipt PDF', async (t) => {
     content: receipt.content.toString('base64'),
   }]);
   assert.match(message.subject, /Payment Receipt RCPT-INV-000003/);
+});
+
+test('paid invoice email copies the booking officer', async (t) => {
+  const originalFetch = global.fetch;
+  const originalApiKey = env.brevoApiKey;
+  let message;
+  env.brevoApiKey = 'test-api-key';
+  global.fetch = async (_url, options) => {
+    message = JSON.parse(options.body);
+    return { ok: true };
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+    env.brevoApiKey = originalApiKey;
+  });
+
+  assert.equal(await emailService.sendInvoicePaid({
+    invoiceNumber: 'INV-000006',
+    bookingReference: 'CARE-20261101-000006',
+    guest: { firstName: 'Amina', email: 'amina@example.org' },
+    paymentStatus: 'Paid',
+    appliedRate: { currency: 'KES' },
+    totalAmount: 3000,
+  }, null, { cc: ['officer@care.org'] }), true);
+
+  assert.deepEqual(message.to, [{ email: 'amina@example.org' }]);
+  assert.deepEqual(message.cc, [{ email: 'officer@care.org' }]);
 });
 
 test('both unpaid invoices and paid receipts embed the CARE stamp', async () => {

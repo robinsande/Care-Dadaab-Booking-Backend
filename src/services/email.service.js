@@ -43,16 +43,25 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character
   "'": '&#39;',
 }[character]));
 
-const sendEmail = async ({ to, subject, html, text, attachments = [] }) => {
+const sendEmail = async ({ to, cc = [], subject, html, text, attachments = [] }) => {
   const from = `"${env.emailFrom.name}" <${env.emailFrom.address}>`;
   const recipients = [...new Set((Array.isArray(to) ? to : [to]).filter(Boolean))];
+  const ccRecipients = [...new Set((Array.isArray(cc) ? cc : [cc]).filter(Boolean))]
+    .filter((recipient) => !recipients.includes(recipient));
   if (!recipients.length) {
     logger.warn(`Email not sent because it has no recipients. Subject: ${subject}`);
     return false;
   }
   if (recipients.length > 1) {
     const results = await Promise.all(
-      recipients.map((recipient) => sendEmail({ to: recipient, subject, html, text, attachments }))
+      recipients.map((recipient) => sendEmail({
+        to: recipient,
+        cc: ccRecipients,
+        subject,
+        html,
+        text,
+        attachments,
+      }))
     );
     return results.every(Boolean);
   }
@@ -71,6 +80,7 @@ const sendEmail = async ({ to, subject, html, text, attachments = [] }) => {
           sender: { name: env.emailFrom.name, email: env.emailFrom.address },
           replyTo: env.emailReplyTo ? { email: env.emailReplyTo } : undefined,
           to: [{ email: recipient }],
+          ...(ccRecipients.length ? { cc: ccRecipients.map((email) => ({ email })) } : {}),
           subject,
           htmlContent: html,
           textContent: text,
@@ -109,6 +119,7 @@ const sendEmail = async ({ to, subject, html, text, attachments = [] }) => {
       from,
       replyTo: env.emailReplyTo || undefined,
       to: recipient,
+      cc: ccRecipients,
       subject,
       html,
       text,
@@ -486,7 +497,7 @@ const sendInvoiceGenerated = async (booking, invoice, invoicePdf, recipients = i
   });
 };
 
-const sendInvoicePaid = (invoice, receiptPdf) => {
+const sendInvoicePaid = (invoice, receiptPdf, { cc = [] } = {}) => {
   const guest = invoice.guest || {};
   const currency = invoice.appliedRate?.currency || 'KES';
   const paidAt = invoice.paidAt || new Date();
@@ -506,6 +517,7 @@ const sendInvoicePaid = (invoice, receiptPdf) => {
 
   return sendEmail({
     to: guest.email,
+    cc,
     subject: `Payment Receipt ${receiptNumber} - ${invoice.bookingReference}`,
     html: layout('Invoice Payment Confirmed', body),
     text: [
