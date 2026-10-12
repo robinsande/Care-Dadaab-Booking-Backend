@@ -45,4 +45,19 @@ const confirmMpesaPayment = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'M-Pesa payment confirmed.', data: invoice });
 });
 
-module.exports = { listInvoices, getInvoice, updatePaymentStatus, confirmMpesaPayment };
+const confirmMpesaScreenshotPayment = asyncHandler(async (req, res) => {
+  const invoice = await invoiceService.confirmMpesaScreenshotPayment(
+    req.params.id,
+    req.file.buffer,
+    req.user
+  );
+  sendSuccess(res, { message: 'M-Pesa screenshot verified and invoice marked as paid.', data: invoice });
+});
+
+module.exports = {
+  listInvoices,
+  getInvoice,
+  updatePaymentStatus,
+  confirmMpesaPayment,
+  confirmMpesaScreenshotPayment,
+};

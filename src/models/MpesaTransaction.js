@@ -10,7 +10,7 @@ const mpesaTransactionSchema = new mongoose.Schema(
     transactionTime: { type: Date },
     rawPayload: { type: mongoose.Schema.Types.Mixed },
     rawMessage: { type: String, trim: true },
-    confirmationSource: { type: String, enum: ['Daraja', 'Manual'], default: 'Daraja' },
+    confirmationSource: { type: String, enum: ['Daraja', 'Manual', 'OCR'], default: 'Daraja' },
     confirmedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }

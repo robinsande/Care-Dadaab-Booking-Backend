@@ -6,6 +6,7 @@ const { validate } = require('../middleware/validate.middleware');
 const { mongoIdParam } = require('../validators/common.validator');
 const { listInvoicesRules, updatePaymentStatusRules } = require('../validators/invoice.validator');
 const { body } = require('express-validator');
+const { uploadMpesaScreenshot } = require('../middleware/mpesa-screenshot-upload.middleware');
 
 const router = express.Router();
 
@@ -26,6 +27,12 @@ router.post(
     body('confirmed').isBoolean().toBoolean(),
   ]),
   invoiceController.confirmMpesaPayment
+);
+router.post(
+  '/:id/mpesa-screenshot',
+  validate([mongoIdParam('id')]),
+  uploadMpesaScreenshot,
+  invoiceController.confirmMpesaScreenshotPayment
 );
 
 module.exports = router;

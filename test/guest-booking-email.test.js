@@ -3,8 +3,9 @@ const assert = require('node:assert/strict');
 const zlib = require('node:zlib');
 const env = require('../src/config/env');
 const emailService = require('../src/services/email.service');
-const { GuestRequest, Booking, User, ReminderLog, Invoice, Receipt } = require('../src/models');
+const { GuestRequest, Booking, User, ReminderLog, Invoice, Receipt, MpesaTransaction } = require('../src/models');
 const invoiceService = require('../src/services/invoice.service');
+const mpesaOcrService = require('../src/services/mpesa-ocr.service');
 const auditService = require('../src/services/audit.service');
 const bookingService = require('../src/services/booking.service');
 const reminderService = require('../src/services/reminder.service');
@@ -182,6 +183,89 @@ test('marking an invoice paid generates and sends its receipt only on the paid t
   assert.equal(storedReceipt.documentVersion, 2);
   assert.equal(storedReceipt.invoiceSnapshot.paymentStatus, 'Paid');
   assert.deepEqual(storedReceipt.pdf, sentReceipts[0].content);
+});
+
+test('uploading a valid M-Pesa screenshot records the transaction and automatically pays the matching invoice', async (t) => {
+  const originals = {
+    findInvoice: Invoice.findById,
+    createTransaction: MpesaTransaction.create,
+    findTransaction: MpesaTransaction.exists,
+    readScreenshot: mpesaOcrService.readMpesaScreenshot,
+    findReceipt: Receipt.findOne,
+    createReceipt: Receipt.create,
+    sendInvoicePaid: emailService.sendInvoicePaid,
+    recordAudit: auditService.record,
+  };
+  const image = Buffer.from('valid-image');
+  const invoice = {
+    _id: 'invoice-id',
+    invoiceNumber: 'INV-000004',
+    bookingReference: 'CARE-20261101-000004',
+    guest: { firstName: 'Amina', lastName: 'Guest', email: 'amina@example.org', contractType: 'Guest' },
+    campName: 'Dadaab',
+    blockName: 'A',
+    roomNumber: '1',
+    arrivalDate: new Date('2026-11-01'),
+    departureDate: new Date('2026-11-03'),
+    numberOfNights: 2,
+    stayType: 'Short Stay',
+    appliedRate: { currency: 'KES', amount: 1500, ratePeriod: 'per_night' },
+    totalAmount: 3000,
+    paymentInstructions: {},
+    paymentStatus: 'Unpaid',
+    save: async () => {},
+  };
+  let transaction;
+  let storedReceipt;
+  let audit;
+  Invoice.findById = async () => invoice;
+  MpesaTransaction.exists = async () => false;
+  MpesaTransaction.create = async (data) => {
+    transaction = data;
+  };
+  mpesaOcrService.readMpesaScreenshot = async (receivedImage) => {
+    assert.equal(receivedImage, image);
+    return {
+      text: 'QAB12CD34E Confirmed. Ksh 3,000.00 received from 254712345678.',
+      confidence: 92,
+    };
+  };
+  Receipt.findOne = async () => storedReceipt;
+  Receipt.create = async (data) => {
+    storedReceipt = { ...data, emailStatus: 'pending', save: async () => {} };
+    return storedReceipt;
+  };
+  emailService.sendInvoicePaid = async (_paidInvoice, createdReceipt) => {
+    assert.equal(createdReceipt.filename, 'RCPT-INV-000004.pdf');
+    return true;
+  };
+  auditService.record = async (entry) => {
+    audit = entry;
+  };
+  t.after(() => {
+    Invoice.findById = originals.findInvoice;
+    MpesaTransaction.create = originals.createTransaction;
+    MpesaTransaction.exists = originals.findTransaction;
+    mpesaOcrService.readMpesaScreenshot = originals.readScreenshot;
+    Receipt.findOne = originals.findReceipt;
+    Receipt.create = originals.createReceipt;
+    emailService.sendInvoicePaid = originals.sendInvoicePaid;
+    auditService.record = originals.recordAudit;
+  });
+
+  const paidInvoice = await invoiceService.confirmMpesaScreenshotPayment(
+    'invoice-id',
+    image,
+    { _id: 'staff-id', email: 'officer@example.org' },
+  );
+
+  assert.equal(paidInvoice.paymentStatus, 'Paid');
+  assert.equal(paidInvoice.paymentMethod, 'M-Pesa OCR Confirmation');
+  assert.equal(paidInvoice.paymentTransactionId, 'QAB12CD34E');
+  assert.equal(transaction.confirmationSource, 'OCR');
+  assert.equal(transaction.rawPayload.ocrConfidence, 92);
+  assert.equal(storedReceipt.emailStatus, 'sent');
+  assert.equal(audit.metadata.confirmationSource, 'OCR');
 });
 
 test('paid invoice email includes the generated receipt PDF', async (t) => {

@@ -18,6 +18,7 @@ const { calculateNights, calculateBillableMonths } = require('../utils/dates');
 const logger = require('../utils/logger');
 const env = require('../config/env');
 const { parseMpesaMessage } = require('../utils/mpesa-message');
+const mpesaOcrService = require('./mpesa-ocr.service');
 
 const RECEIPT_DOCUMENT_VERSION = 2;
 const INVOICE_ACCENT_COLOR = '#54206f';
@@ -231,11 +232,13 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
   return invoice;
 };
 
-const confirmMpesaPayment = async (id, { message, confirmed }, actor) => {
-  if (confirmed !== true) throw ApiError.badRequest('Confirm that you verified the M-Pesa message.');
+const recordMpesaPayment = async (id, message, actor, confirmationSource, ocrConfidence) => {
   const parsed = parseMpesaMessage(message);
   if (!parsed) {
-    throw ApiError.badRequest('Paste a valid M-Pesa confirmation message containing a transaction code and Ksh amount.');
+    const errorMessage = confirmationSource === 'OCR'
+      ? 'Could not read a confirmed transaction code and Ksh amount. Upload a clearer screenshot or paste the M-Pesa message instead.'
+      : 'Paste a valid M-Pesa confirmation message containing a transaction code and Ksh amount.';
+    throw ApiError.badRequest(errorMessage);
   }
 
   const invoice = await Invoice.findById(id);
@@ -261,8 +264,11 @@ const confirmMpesaPayment = async (id, { message, confirmed }, actor) => {
       amount: parsed.amount,
       phoneNumber: parsed.phoneNumber,
       rawMessage: String(message).trim(),
-      rawPayload: { message: String(message).trim() },
-      confirmationSource: 'Manual',
+      rawPayload: {
+        message: String(message).trim(),
+        ...(ocrConfidence === undefined ? {} : { ocrConfidence }),
+      },
+      confirmationSource,
       confirmedBy: actor._id,
     });
   } catch (error) {
@@ -273,7 +279,7 @@ const confirmMpesaPayment = async (id, { message, confirmed }, actor) => {
   }
 
   const updated = await updatePaymentStatus(invoice._id, INVOICE_PAYMENT_STATUS.PAID, {
-    paymentMethod: 'M-Pesa Manual Confirmation',
+    paymentMethod: confirmationSource === 'OCR' ? 'M-Pesa OCR Confirmation' : 'M-Pesa Manual Confirmation',
     transactionId: parsed.transactionId,
     phoneNumber: parsed.phoneNumber,
   });
@@ -286,11 +292,23 @@ const confirmMpesaPayment = async (id, { message, confirmed }, actor) => {
     metadata: {
       invoiceNumber: invoice.invoiceNumber,
       transactionId: parsed.transactionId,
-      paymentMethod: 'M-Pesa Manual Confirmation',
+      paymentMethod: confirmationSource === 'OCR' ? 'M-Pesa OCR Confirmation' : 'M-Pesa Manual Confirmation',
+      confirmationSource,
+      ...(ocrConfidence === undefined ? {} : { ocrConfidence }),
     },
-    message: `Invoice ${invoice.invoiceNumber} payment confirmed from a pasted M-Pesa message.`,
+    message: `Invoice ${invoice.invoiceNumber} payment confirmed from a ${confirmationSource === 'OCR' ? 'uploaded M-Pesa screenshot' : 'pasted M-Pesa message'}.`,
   });
   return updated;
+};
+
+const confirmMpesaPayment = (id, { message, confirmed }, actor) => {
+  if (confirmed !== true) throw ApiError.badRequest('Confirm that you verified the M-Pesa message.');
+  return recordMpesaPayment(id, message, actor, 'Manual');
+};
+
+const confirmMpesaScreenshotPayment = async (id, imageBuffer, actor) => {
+  const { text, confidence } = await mpesaOcrService.readMpesaScreenshot(imageBuffer);
+  return recordMpesaPayment(id, text, actor, 'OCR', confidence);
 };
 
 const formatMoney = (amount, currency = 'KES') =>
@@ -659,6 +677,7 @@ module.exports = {
   sendInvoiceEmail,
   getInvoiceRecipients,
   confirmMpesaPayment,
+  confirmMpesaScreenshotPayment,
   updatePaymentStatus,
   generateInvoicePdfBuffer,
   getInvoicePdfBuffer,
