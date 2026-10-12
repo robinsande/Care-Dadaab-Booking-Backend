@@ -404,7 +404,7 @@ const generateInvoicePdfBuffer = async (invoice) => {
       invoice.blockName && `Block ${invoice.blockName}`,
       invoice.roomNumber && `Room ${invoice.roomNumber}`,
     ].filter(Boolean).join(' · ');
-    const systemName = 'CARE Kenya Dadaab Accommodation Management System';
+    const systemName = 'CARE Kenya Accommodation Management System';
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
@@ -499,7 +499,7 @@ const generateInvoicePdfBuffer = async (invoice) => {
       drawLogo(left, 24, 112, 44);
       drawPdfText(doc, 'INVOICE', left, 91, 220, { bold: true, size: 27, color: '#ffffff' });
       drawPdfText(doc, `NO: ${invoice.invoiceNumber || '—'}`, right - 230, 103, 220, { bold: true, size: 13, color: '#ffffff', align: 'right' });
-      drawPdfText(doc, 'CARE Kenya · Dadaab Accommodation Management System', left, 187, contentWidth, { bold: true, size: 9, color: INVOICE_ACCENT_DARK_COLOR });
+      drawPdfText(doc, systemName, left, 187, contentWidth, { bold: true, size: 9, color: INVOICE_ACCENT_DARK_COLOR });
 
       const guestName = `${guest.firstName || ''} ${guest.lastName || ''}`.trim() || 'Guest';
       drawPdfText(doc, 'Bill To:', left, 215, contentWidth * 0.48, { bold: true, size: 14, color: '#555555' });
