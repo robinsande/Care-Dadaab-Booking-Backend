@@ -21,6 +21,15 @@ router.post('/register', limiter, validate(registrationRules), controller.regist
 router.post('/login', limiter, validate(loginRules), controller.login);
 router.post('/request-reset', limiter, validate(resetRequestRules), controller.requestReset);
 router.post('/reset', limiter, validate(resetRules), controller.reset);
+router.get('/push-key', controller.getPushKey);
+router.put('/push-subscription', authenticateGuest, validate([
+  require('express-validator').body('endpoint').isURL({ require_tld: false }),
+  require('express-validator').body('keys.p256dh').isString().notEmpty(),
+  require('express-validator').body('keys.auth').isString().notEmpty(),
+]), controller.savePushSubscription);
+router.delete('/push-subscription', authenticateGuest, validate([
+  require('express-validator').body('endpoint').isURL({ require_tld: false }),
+]), controller.removePushSubscription);
 router.get('/me', authenticateGuest, controller.me);
 router.put('/me', authenticateGuest, validate(profileRules), controller.updateProfile);
 

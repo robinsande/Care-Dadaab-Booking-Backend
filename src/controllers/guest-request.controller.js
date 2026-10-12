@@ -59,5 +59,16 @@ const createPublic = asyncHandler(async (req, res) => {
     data: await service.createPublicBookingRequest(req.body),
   });
 });
-
-module.exports = { listCamps, listCampRates, create, createPublic, createForBooking, listMine, listBookings, getInvoice, listStaff, resolve, deleteStaffRequest };
+module.exports = {
+  listCamps,
+  listCampRates,
+  create,
+  createPublic,
+  createForBooking,
+  listMine,
+  listBookings,
+  getInvoice,
+  listStaff,
+  resolve,
+  deleteStaffRequest,
+};

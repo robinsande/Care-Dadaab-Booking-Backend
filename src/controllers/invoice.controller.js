@@ -36,4 +36,13 @@ const updatePaymentStatus = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Invoice payment status updated.', data: invoice });
 });
 
-module.exports = { listInvoices, getInvoice, updatePaymentStatus };
+const confirmMpesaPayment = asyncHandler(async (req, res) => {
+  const invoice = await invoiceService.confirmMpesaPayment(
+    req.params.id,
+    req.body,
+    req.user
+  );
+  sendSuccess(res, { message: 'M-Pesa payment confirmed.', data: invoice });
+});
+
+module.exports = { listInvoices, getInvoice, updatePaymentStatus, confirmMpesaPayment };

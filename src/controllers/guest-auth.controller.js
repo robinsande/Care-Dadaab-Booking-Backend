@@ -1,6 +1,7 @@
 const asyncHandler = require('../utils/asyncHandler');
 const { sendSuccess } = require('../utils/ApiResponse');
 const authService = require('../services/guest-auth.service');
+const pushService = require('../services/push.service');
 
 const register = asyncHandler(async (req, res) => {
   sendSuccess(res, { statusCode: 201, message: 'Guest account created.', data: await authService.register(req.body) });
@@ -21,5 +22,26 @@ const requestReset = asyncHandler(async (req, res) => {
 const reset = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Password reset successful.', data: await authService.resetPassword(req.body) });
 });
+const getPushKey = asyncHandler(async (_req, res) => {
+  sendSuccess(res, { message: 'Push key retrieved.', data: { publicKey: pushService.getPublicKey() } });
+});
+const savePushSubscription = asyncHandler(async (req, res) => {
+  await pushService.saveGuestSubscription(req.guest, req.body);
+  sendSuccess(res, { message: 'Push notifications enabled.' });
+});
+const removePushSubscription = asyncHandler(async (req, res) => {
+  await pushService.removeGuestSubscription(req.guest, req.body.endpoint);
+  sendSuccess(res, { message: 'Push notifications disabled.' });
+});
 
-module.exports = { register, login, me, updateProfile, requestReset, reset };
+module.exports = {
+  register,
+  login,
+  me,
+  updateProfile,
+  requestReset,
+  reset,
+  getPushKey,
+  savePushSubscription,
+  removePushSubscription,
+};

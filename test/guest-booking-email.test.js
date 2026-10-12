@@ -354,13 +354,16 @@ test('new booking alerts staff and invoice emails accept officer recipients', as
   assert.ok(messages.slice(-2).every((message) => message.attachments.length === 1));
 });
 
-test('resending booking emails alerts guest, booking officers, super admins, and support', async (t) => {
+test('resending booking emails sends an invoice only once to the guest and booking officer', async (t) => {
   const originals = {
     fetch: global.fetch,
     apiKey: env.brevoApiKey,
     findBooking: Booking.findById,
     findUser: User.findById,
     findUsers: User.find,
+    findInvoice: Invoice.findById,
+    claimInvoiceEmail: Invoice.findOneAndUpdate,
+    updateInvoice: Invoice.updateOne,
     generateInvoice: invoiceService.generateInvoiceForBooking,
     generatePdf: invoiceService.generateInvoicePdfBuffer,
     auditRecord: auditService.record,
@@ -381,6 +384,16 @@ test('resending booking emails alerts guest, booking officers, super admins, and
     status: 'Booked',
     appliedRate: { currency: 'KES', amount: 1500, ratePeriod: 'per_night' },
   };
+  const invoice = {
+    _id: 'invoice-id',
+    invoiceNumber: 'INV-000001',
+    appliedRate: { currency: 'KES', amount: 1500, ratePeriod: 'per_night' },
+    totalAmount: 3000,
+    paymentInstructions: {},
+    guest: booking.guest,
+    recipientOfficer: 'creator-id',
+    emailStatus: 'Pending',
+  };
   env.brevoApiKey = 'test-api-key';
   global.fetch = async (_url, options) => {
     messages.push(JSON.parse(options.body));
@@ -389,7 +402,7 @@ test('resending booking emails alerts guest, booking officers, super admins, and
   Booking.findById = async () => booking;
   User.findById = () => ({
     select: () => ({
-      lean: async () => ({ email: 'creator@example.org' }),
+      lean: async () => ({ email: 'creator@example.org', role: 'Accommodation Officer' }),
     }),
   });
   User.find = () => ({
@@ -400,13 +413,18 @@ test('resending booking emails alerts guest, booking officers, super admins, and
       ],
     }),
   });
-  invoiceService.generateInvoiceForBooking = async () => ({
-    invoiceNumber: 'INV-000001',
-    appliedRate: { currency: 'KES', amount: 1500, ratePeriod: 'per_night' },
-    totalAmount: 3000,
-    paymentInstructions: {},
-  });
+  invoiceService.generateInvoiceForBooking = async () => invoice;
   invoiceService.generateInvoicePdfBuffer = async () => Buffer.from('%PDF');
+  Invoice.findOneAndUpdate = async (_filter, update) => {
+    Object.assign(invoice, update.$set);
+    return invoice;
+  };
+  Invoice.updateOne = async (_filter, update) => {
+    Object.assign(invoice, update.$set);
+  };
+  Invoice.findById = () => ({
+    select: () => ({ lean: async () => ({ emailStatus: invoice.emailStatus }) }),
+  });
   auditService.record = async () => {};
   t.after(() => {
     global.fetch = originals.fetch;
@@ -414,6 +432,9 @@ test('resending booking emails alerts guest, booking officers, super admins, and
     Booking.findById = originals.findBooking;
     User.findById = originals.findUser;
     User.find = originals.findUsers;
+    Invoice.findById = originals.findInvoice;
+    Invoice.findOneAndUpdate = originals.claimInvoiceEmail;
+    Invoice.updateOne = originals.updateInvoice;
     invoiceService.generateInvoiceForBooking = originals.generateInvoice;
     invoiceService.generateInvoicePdfBuffer = originals.generatePdf;
     auditService.record = originals.auditRecord;
@@ -426,17 +447,17 @@ test('resending booking emails alerts guest, booking officers, super admins, and
   assert.equal(result.bookingEmailSent, true);
   assert.equal(result.invoiceEmailSent, true);
   assert.equal(result.staffEmailSent, true);
+  await bookingService.resendBookingEmails('booking-id', {
+    _id: 'actor-id',
+    email: 'actor@example.org',
+  });
+  const invoiceMessages = messages.filter((message) => message.subject.includes('Booking Confirmed and Invoice'));
+  assert.equal(invoiceMessages.length, 2);
   assert.deepEqual(
-    messages.map((message) => message.to[0].email).sort(),
-    [
-      'accommodation.dadaab@care.org',
-      'actor@example.org',
-      'admin@example.org',
-      'amina@example.org',
-      'creator@example.org',
-      'officer@example.org',
-    ],
+    invoiceMessages.map((message) => message.to[0].email).sort(),
+    ['amina@example.org', 'creator@example.org'],
   );
+  assert.ok(!invoiceMessages[0].to.some((recipient) => recipient.email === 'admin@example.org'));
 });
 
 test('pending invoice reminders email the guest, booking officer, and active super admins', async (t) => {

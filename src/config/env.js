@@ -48,6 +48,12 @@ const env = {
   },
   brevoApiKey: process.env.BREVO_API_KEY,
 
+  webPush: {
+    publicKey: process.env.WEB_PUSH_PUBLIC_KEY || '',
+    privateKey: process.env.WEB_PUSH_PRIVATE_KEY || '',
+    subject: process.env.WEB_PUSH_SUBJECT || 'mailto:accommodation.dadaab@care.org',
+  },
+
   emailFrom: {
     name: process.env.EMAIL_FROM_NAME || 'CARE Kenya Dadaab Accommodation',
     address: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USER || 'no-reply@example.com',

@@ -13,6 +13,7 @@ module.exports = {
   Settings: require('./Settings'),
   AuditLog: require('./AuditLog'),
   MpesaTransaction: require('./MpesaTransaction'),
+  GuestPushSubscription: require('./GuestPushSubscription'),
   ReminderLog: require('./ReminderLog'),
   Guest: require('./Guest'),
   GuestRequest: require('./GuestRequest'),

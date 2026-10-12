@@ -90,6 +90,8 @@ All endpoints require JWT except `POST /auth/login`.
 ### Invoices
 - `GET /invoices`, `GET /invoices/:id`
 - `PATCH /invoices/:id/payment-status`
+- `POST /invoices/:id/mpesa-confirmation` — paste a confirmed M-Pesa message and acknowledge verification; the transaction code and amount are matched to the invoice.
+- Invoice emails are sent once to the guest and the creating Accommodation Officer, never to Super Admin recipients.
 - Marking an invoice Paid creates a numbered receipt, stores its PDF and payment/invoice snapshot for audit, and emails the receipt PDF to the guest.
 - Print and Download use the same server-generated PDF; paid invoices return the saved receipt PDF.
 - The CARE Dadaab stamp is embedded in new invoice/receipt PDFs; older saved receipts are refreshed to the current stamped PDF when accessed.
@@ -107,8 +109,9 @@ All endpoints require JWT except `POST /auth/login`.
 ### Guest booking requests
 - Guests submit a request at `POST /guest/public-requests` or through the guest portal.
 - The guest receives an acknowledgement email for each request. Active Accommodation Officers and Super Admins, plus the support email, receive a separate action-needed message for every guest-portal request.
-- Staff complete a request by assigning a room available for the requested camp and dates. The resulting booking confirmation and billable PDF invoice are emailed to the guest only.
-- Every completed booking also sends a booking alert to active Accommodation Officers and Super Admins, plus the support email. On check-out, the invoice PDF is sent to the guest and the officer who created the booking, even if the invoice was generated earlier.
+- Staff complete a request by assigning a room available for the requested camp and dates. The booking confirmation and billable PDF invoice are emailed to the guest and the creating Accommodation Officer; Super Admins are not invoice recipients.
+- Every completed booking also sends a booking alert to active Accommodation Officers and Super Admins, plus the support email. Check-in and check-out notices go to the guest by email and opted-in browser push. Invoices are delivered once and are not resent on check-out.
+- Browser push requires VAPID credentials (`WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, `WEB_PUSH_SUBJECT`); generate them with `npx web-push generate-vapid-keys`. The guest portal must be hosted over HTTPS.
 - Configure SMTP (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`) or `BREVO_API_KEY` to deliver request and booking emails. Delivery failures are logged and can be recovered from the booking screen with **Resend Emails**.
 
 ---

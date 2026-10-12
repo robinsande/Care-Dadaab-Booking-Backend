@@ -1,4 +1,4 @@
-const { Invoice, Receipt, User } = require('../models');
+const { Invoice, Receipt, User, MpesaTransaction } = require('../models');
 const ApiError = require('../utils/ApiError');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
@@ -12,10 +12,12 @@ const {
   AUDIT_ACTIONS,
   INVOICE_PAYMENT_STATUS,
   INVOICE_PAYMENT_STATUS_VALUES,
+  ROLES,
 } = require('../utils/constants');
 const { calculateNights, calculateBillableMonths } = require('../utils/dates');
 const logger = require('../utils/logger');
 const env = require('../config/env');
+const { parseMpesaMessage } = require('../utils/mpesa-message');
 
 const RECEIPT_DOCUMENT_VERSION = 2;
 const INVOICE_ACCENT_COLOR = '#54206f';
@@ -139,16 +141,7 @@ const generateInvoiceForBooking = async (booking, { mode = 'createIfMissing', no
   if (notify) {
     try {
       const sent = await sendInvoiceEmail(booking, invoice);
-      if (sent) {
-        const recipients = await getInvoiceRecipients(booking, invoice);
-        await auditService.record({
-          action: AUDIT_ACTIONS.EMAIL_SENT,
-          booking,
-          actorType: ACTOR_TYPE.SYSTEM,
-          metadata: { emailType: 'Invoice Generated', to: recipients },
-          message: `Invoice email dispatched for ${booking.bookingReference}.`,
-        });
-      } else {
+      if (!sent) {
         logger.warn(`Invoice email delivery failed for ${booking.bookingReference}.`);
       }
     } catch (error) {
@@ -236,6 +229,68 @@ const updatePaymentStatus = async (id, paymentStatus, paymentDetails = {}) => {
   }
 
   return invoice;
+};
+
+const confirmMpesaPayment = async (id, { message, confirmed }, actor) => {
+  if (confirmed !== true) throw ApiError.badRequest('Confirm that you verified the M-Pesa message.');
+  const parsed = parseMpesaMessage(message);
+  if (!parsed) {
+    throw ApiError.badRequest('Paste a valid M-Pesa confirmation message containing a transaction code and Ksh amount.');
+  }
+
+  const invoice = await Invoice.findById(id);
+  if (!invoice) throw ApiError.notFound('Invoice not found.');
+  if (invoice.paymentStatus === INVOICE_PAYMENT_STATUS.PAID) {
+    throw ApiError.conflict('This invoice is already marked as paid.');
+  }
+  if (isNonBillableCareStaff(invoice.guest) || isIntercompanyCareStaffLongStay(invoice)) {
+    throw ApiError.badRequest('CARE Kenya staff accommodation is billed through the organisation.');
+  }
+  if (parsed.amount !== Number(invoice.totalAmount)) {
+    throw ApiError.badRequest(`The M-Pesa message amount does not match invoice ${invoice.invoiceNumber}.`);
+  }
+  if (await MpesaTransaction.exists({ transactionId: parsed.transactionId })) {
+    throw ApiError.conflict('This M-Pesa transaction has already been recorded.');
+  }
+
+  try {
+    await MpesaTransaction.create({
+      transactionId: parsed.transactionId,
+      invoice: invoice._id,
+      bookingReference: invoice.bookingReference,
+      amount: parsed.amount,
+      phoneNumber: parsed.phoneNumber,
+      rawMessage: String(message).trim(),
+      rawPayload: { message: String(message).trim() },
+      confirmationSource: 'Manual',
+      confirmedBy: actor._id,
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw ApiError.conflict('This M-Pesa transaction has already been recorded.');
+    }
+    throw error;
+  }
+
+  const updated = await updatePaymentStatus(invoice._id, INVOICE_PAYMENT_STATUS.PAID, {
+    paymentMethod: 'M-Pesa Manual Confirmation',
+    transactionId: parsed.transactionId,
+    phoneNumber: parsed.phoneNumber,
+  });
+  await auditService.record({
+    action: AUDIT_ACTIONS.INVOICE_UPDATED,
+    bookingReference: invoice.bookingReference,
+    actorType: ACTOR_TYPE.USER,
+    actor,
+    actorLabel: actor.email,
+    metadata: {
+      invoiceNumber: invoice.invoiceNumber,
+      transactionId: parsed.transactionId,
+      paymentMethod: 'M-Pesa Manual Confirmation',
+    },
+    message: `Invoice ${invoice.invoiceNumber} payment confirmed from a pasted M-Pesa message.`,
+  });
+  return updated;
 };
 
 const formatMoney = (amount, currency = 'KES') =>
@@ -526,21 +581,72 @@ const getInvoicePdfBuffer = async (invoice) => {
 };
 
 const getInvoiceRecipients = async (booking, invoice) => {
-  let creatorEmail = booking.createdBy?.email;
-  if (!creatorEmail && booking.createdBy) {
-    creatorEmail = (await User.findById(booking.createdBy).select('email').lean())?.email;
+  const officerId = booking.createdBy?._id || booking.createdBy || invoice.recipientOfficer?._id || invoice.recipientOfficer;
+  let creatorEmail = null;
+  if (officerId) {
+    const officer = await User.findById(officerId).select('email role').lean();
+    if (officer?.role === ROLES.ACCOMMODATION_OFFICER) creatorEmail = officer.email;
   }
   return [...new Set([invoice.guest?.email, booking.guest?.email, creatorEmail].filter(Boolean))];
 };
 
-const sendInvoiceEmail = async (booking, invoice) => {
-  const content = await generateInvoicePdfBuffer(invoice);
+const sendInvoiceEmail = async (booking, invoice, deliver = null) => {
+  if (!invoice) return false;
   const recipients = await getInvoiceRecipients(booking, invoice);
-  return emailService.sendInvoiceGenerated(booking, invoice, {
-    filename: `${invoice.invoiceNumber || 'invoice'}.pdf`,
-    content,
-    contentType: 'application/pdf',
-  }, recipients);
+  const attemptedAt = new Date();
+  const claim = await Invoice.findOneAndUpdate(
+    {
+      _id: invoice._id,
+      $or: [
+        { emailStatus: { $in: ['Pending', 'Failed'] } },
+        { emailStatus: { $exists: false } },
+        { emailStatus: 'Sending', emailAttemptedAt: { $lt: new Date(Date.now() - 10 * 60 * 1000) } },
+      ],
+    },
+    { $set: { emailStatus: 'Sending', emailAttemptedAt: attemptedAt, emailRecipients: recipients } },
+    { new: true }
+  );
+  if (!claim) {
+    const latest = await Invoice.findById(invoice._id).select('emailStatus').lean();
+    return latest?.emailStatus === 'Sent';
+  }
+  invoice.emailStatus = 'Sending';
+
+  let sent = false;
+  try {
+    const content = await generateInvoicePdfBuffer(invoice);
+    sent = Boolean(await (deliver
+      ? deliver(recipients, content)
+      : emailService.sendInvoiceGenerated(booking, invoice, {
+        filename: `${invoice.invoiceNumber || 'invoice'}.pdf`,
+        content,
+        contentType: 'application/pdf',
+      }, recipients)));
+  } catch (error) {
+    logger.error(`Invoice email failed for ${invoice.invoiceNumber}: ${error.message}`);
+  }
+
+  await Invoice.updateOne(
+    { _id: invoice._id, emailStatus: 'Sending' },
+    {
+      $set: {
+        emailStatus: sent ? 'Sent' : 'Failed',
+        emailSentAt: sent ? new Date() : null,
+        emailAttemptedAt: attemptedAt,
+      },
+    }
+  );
+  invoice.emailStatus = sent ? 'Sent' : 'Failed';
+  if (sent) {
+    await auditService.record({
+      action: AUDIT_ACTIONS.EMAIL_SENT,
+      booking,
+      actorType: ACTOR_TYPE.SYSTEM,
+      metadata: { emailType: 'Invoice Generated', to: recipients },
+      message: `Invoice email dispatched for ${booking.bookingReference}.`,
+    });
+  }
+  return sent;
 };
 
 module.exports = {
@@ -551,6 +657,8 @@ module.exports = {
   getInvoiceById,
   resendInvoiceEmail: sendInvoiceEmail,
   sendInvoiceEmail,
+  getInvoiceRecipients,
+  confirmMpesaPayment,
   updatePaymentStatus,
   generateInvoicePdfBuffer,
   getInvoicePdfBuffer,

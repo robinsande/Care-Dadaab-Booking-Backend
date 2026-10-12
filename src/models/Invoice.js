@@ -96,6 +96,14 @@ const invoiceSchema = new mongoose.Schema(
     paymentTransactionId: { type: String, trim: true, default: undefined, unique: true, sparse: true },
     paymentPhoneNumber: { type: String, trim: true, default: undefined },
     paymentCheckoutRequestId: { type: String, trim: true, default: null, index: true },
+    emailStatus: {
+      type: String,
+      enum: ['Pending', 'Sending', 'Sent', 'Failed'],
+      default: 'Pending',
+    },
+    emailSentAt: { type: Date, default: null },
+    emailAttemptedAt: { type: Date, default: null },
+    emailRecipients: { type: [String], default: [] },
 
     recipientOfficer: {
       type: mongoose.Schema.Types.ObjectId,
