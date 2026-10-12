@@ -4,6 +4,7 @@ const {
   ACTIVE_BOOKING_STATUSES,
   ROOM_STATUS,
   INVOICE_PAYMENT_STATUS,
+  STAY_TYPE_VALUES,
 } = require('../utils/constants');
 const { startOfDay, endOfDay } = require('../utils/dates');
 
@@ -32,20 +33,28 @@ const getDashboard = async () => {
   dashboardFetchPromise = (async () => {
     const todayStart = startOfDay();
     const todayEnd = endOfDay();
+    const currentDate = new Date();
+    const sixMonthStart = new Date(Date.UTC(
+      currentDate.getUTCFullYear(),
+      currentDate.getUTCMonth() - 5,
+      1,
+    ));
 
     const [
       todaysArrivals,
       todaysDepartures,
       occupiedRooms,
       totalActiveRooms,
-      bookedRooms,
+      bookedRoomIds,
       maintenanceRooms,
       outstandingInvoices,
       recentBookings,
       camps,
-      roomStatusRows,
       bookingsByCamp,
       pendingGuestRequests,
+      revenueByMonthRows,
+      revenueByStayTypeRows,
+      bookingsByStayTypeRows,
     ] = await Promise.all([
       Booking.countDocuments({
         status: { $in: [BOOKING_STATUS.BOOKED, BOOKING_STATUS.CHECKED_IN] },
@@ -74,11 +83,6 @@ const getDashboard = async () => {
         .select('bookingReference status campName guest arrivalDate departureDate createdAt')
         .lean(),
       Camp.find({ isActive: true }).sort({ name: 1 }).lean(),
-      Room.find({ isActive: true })
-        .populate('camp', 'name')
-        .sort({ campName: 1, blockName: 1, roomNumber: 1 })
-        .select('camp blockName roomNumber status')
-        .lean(),
       Booking.aggregate([
         { $match: { status: { $in: ACTIVE_BOOKING_STATUSES } } },
         { $group: { _id: '$campName', count: { $sum: 1 } } },
@@ -91,34 +95,98 @@ const getDashboard = async () => {
         .populate('camp', 'name')
         .select('guest camp arrivalDate departureDate stayType reason status createdAt')
         .lean(),
+      Invoice.aggregate([
+        { $match: { generatedAt: { $gte: sixMonthStart, $lte: currentDate } } },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m', date: '$generatedAt', timezone: 'UTC' },
+            },
+            totalRevenue: { $sum: '$totalAmount' },
+            invoiceCount: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+      Invoice.aggregate([
+        { $group: { _id: '$stayType', totalRevenue: { $sum: '$totalAmount' } } },
+      ]),
+      Booking.aggregate([
+        {
+          $match: {
+            status: {
+              $in: [
+                BOOKING_STATUS.BOOKED,
+                BOOKING_STATUS.CHECKED_IN,
+                BOOKING_STATUS.CHECKED_OUT,
+              ],
+            },
+          },
+        },
+        { $group: { _id: '$stayType', bookingCount: { $sum: 1 } } },
+      ]),
     ]);
 
-    const bookedRoomCount = new Set(bookedRooms.map(String)).size;
+    const bookedRoomCount = new Set(bookedRoomIds.map(String)).size;
     const availableRooms = Math.max(
       totalActiveRooms - occupiedRooms - bookedRoomCount - maintenanceRooms,
       0,
     );
+    const revenueByMonth = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(Date.UTC(
+        currentDate.getUTCFullYear(),
+        currentDate.getUTCMonth() - 5 + index,
+        1,
+      ));
+      const key = date.toISOString().slice(0, 7);
+      const row = revenueByMonthRows.find((item) => item._id === key);
+      return {
+        month: key,
+        label: new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(date),
+        totalRevenue: row?.totalRevenue || 0,
+        invoiceCount: row?.invoiceCount || 0,
+      };
+    });
+    const revenueByStayType = new Map(
+      revenueByStayTypeRows.map((row) => [row._id, row.totalRevenue]),
+    );
+    const bookingsByStayType = new Map(
+      bookingsByStayTypeRows.map((row) => [row._id, row.bookingCount]),
+    );
+    const stayTypeStats = STAY_TYPE_VALUES.map((stayType) => ({
+      stayType,
+      bookingCount: bookingsByStayType.get(stayType) || 0,
+      totalRevenue: revenueByStayType.get(stayType) || 0,
+    }));
 
     const result = {
       todaysArrivals,
       todaysDepartures,
       occupiedRooms,
       availableRooms,
+      bookedRooms: bookedRoomCount,
       maintenanceRooms,
+      totalActiveRooms,
+      roomOccupancy: {
+        occupied: occupiedRooms,
+        booked: bookedRoomCount,
+        available: availableRooms,
+        maintenance: maintenanceRooms,
+        total: totalActiveRooms,
+      },
+      occupancyRate: totalActiveRooms > maintenanceRooms
+        ? Math.round((occupiedRooms / (totalActiveRooms - maintenanceRooms)) * 100)
+        : 0,
+      revenueByMonth,
+      stayTypeStats,
       outstandingInvoices,
       recentBookings,
       bookingsByCamp: bookingsByCamp.map((row) => ({
         campName: row._id,
         count: row.count,
       })),
-        pendingGuestRequests,
+      pendingGuestRequests,
       camps: camps.map((c) => ({ id: c._id, name: c.name })),
-      roomStatuses: roomStatusRows.map((room) => ({
-        campName: room.camp?.name || '—',
-        blockName: room.blockName,
-        roomNumber: room.roomNumber,
-        status: room.status,
-      })),
     };
 
     dashboardCache = {
