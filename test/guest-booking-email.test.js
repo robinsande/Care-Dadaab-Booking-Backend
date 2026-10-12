@@ -180,9 +180,54 @@ test('marking an invoice paid generates and sends its receipt only on the paid t
   assert.equal(invoice.paymentMethod, 'Cash');
   assert.equal(storedReceipt.receiptNumber, 'RCPT-INV-000002');
   assert.equal(storedReceipt.emailStatus, 'sent');
-  assert.equal(storedReceipt.documentVersion, 2);
+  assert.equal(storedReceipt.documentVersion, 3);
   assert.equal(storedReceipt.invoiceSnapshot.paymentStatus, 'Paid');
   assert.deepEqual(storedReceipt.pdf, sentReceipts[0].content);
+});
+
+test('downloading a saved version 2 receipt rebuilds it with the current readable header', async (t) => {
+  const originalFindReceipt = Receipt.findOne;
+  const invoiceSnapshot = {
+    _id: 'invoice-id',
+    invoiceNumber: 'INV-000005',
+    bookingReference: 'CARE-20261101-000005',
+    guest: {
+      firstName: 'Amina',
+      lastName: 'Guest',
+      email: 'amina@example.org',
+      contractType: 'Guest',
+    },
+    campName: 'Dadaab',
+    blockName: 'A',
+    roomNumber: '1',
+    arrivalDate: new Date('2026-11-01'),
+    departureDate: new Date('2026-11-03'),
+    numberOfNights: 2,
+    stayType: 'Short Stay',
+    appliedRate: { currency: 'KES', amount: 1500, ratePeriod: 'per_night' },
+    totalAmount: 3000,
+    paymentInstructions: {},
+    paymentStatus: 'Paid',
+    paidAt: new Date('2026-11-03'),
+  };
+  const oldPdf = Buffer.from('%PDF old header');
+  const savedReceipt = {
+    invoice: invoiceSnapshot._id,
+    invoiceSnapshot,
+    pdf: oldPdf,
+    documentVersion: 2,
+    save: async function save() {},
+  };
+  Receipt.findOne = async () => savedReceipt;
+  t.after(() => {
+    Receipt.findOne = originalFindReceipt;
+  });
+
+  const downloadedPdf = await invoiceService.getInvoicePdfBuffer(invoiceSnapshot);
+
+  assert.equal(savedReceipt.documentVersion, 3);
+  assert.notDeepEqual(downloadedPdf, oldPdf);
+  assert.equal(downloadedPdf.subarray(0, 4).toString(), '%PDF');
 });
 
 test('uploading a valid M-Pesa screenshot records the transaction and automatically pays the matching invoice', async (t) => {

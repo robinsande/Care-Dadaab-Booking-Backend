@@ -20,7 +20,7 @@ const env = require('../config/env');
 const { parseMpesaMessage } = require('../utils/mpesa-message');
 const mpesaOcrService = require('./mpesa-ocr.service');
 
-const RECEIPT_DOCUMENT_VERSION = 2;
+const RECEIPT_DOCUMENT_VERSION = 3;
 const INVOICE_ACCENT_COLOR = '#54206f';
 const INVOICE_ACCENT_DARK_COLOR = '#351347';
 const isNonBillableCareStaff = (guest = {}) =>
@@ -404,7 +404,7 @@ const generateInvoicePdfBuffer = async (invoice) => {
       invoice.blockName && `Block ${invoice.blockName}`,
       invoice.roomNumber && `Room ${invoice.roomNumber}`,
     ].filter(Boolean).join(' · ');
-    const systemName = 'CARE Kenya Accommodation Management System';
+    const systemName = 'CARE Kenya Accommodation';
     doc.on('data', (chunk) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
