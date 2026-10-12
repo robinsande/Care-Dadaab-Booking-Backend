@@ -185,9 +185,25 @@ const listInvoices = async (query = {}) => {
     Invoice.countDocuments(filter),
   ]);
 
+  const paidInvoices = items.filter((invoice) => invoice.paymentStatus === INVOICE_PAYMENT_STATUS.PAID);
+  const receipts = paidInvoices.length
+    ? await Receipt.find({ invoice: { $in: paidInvoices.map((invoice) => invoice._id) } })
+      .select('invoice emailStatus')
+      .lean()
+    : [];
+  const receiptStatuses = new Map(receipts.map((receipt) => [
+    String(receipt.invoice),
+    receipt.emailStatus,
+  ]));
+  const invoicesWithReceiptStatus = items.map((invoice) => (
+    invoice.paymentStatus === INVOICE_PAYMENT_STATUS.PAID
+      ? { ...invoice, receiptEmailStatus: receiptStatuses.get(String(invoice._id)) || 'pending' }
+      : invoice
+  ));
+
   return {
-    items,
-    invoices: items,
+    items: invoicesWithReceiptStatus,
+    invoices: invoicesWithReceiptStatus,
     page,
     limit,
     total,
@@ -201,6 +217,10 @@ const getInvoiceById = async (id) => {
     .populate('recipientOfficer', 'firstName lastName email')
     .lean();
   if (!invoice) throw ApiError.notFound('Invoice not found.');
+  if (invoice.paymentStatus === INVOICE_PAYMENT_STATUS.PAID) {
+    const receipt = await Receipt.findOne({ invoice: invoice._id }).select('emailStatus').lean();
+    invoice.receiptEmailStatus = receipt?.emailStatus || 'pending';
+  }
   return invoice;
 };
 
@@ -309,6 +329,16 @@ const confirmMpesaPayment = (id, { message, confirmed }, actor) => {
 const confirmMpesaScreenshotPayment = async (id, imageBuffer, actor) => {
   const { text, confidence } = await mpesaOcrService.readMpesaScreenshot(imageBuffer);
   return recordMpesaPayment(id, text, actor, 'OCR', confidence);
+};
+
+const resendPaidReceiptEmail = async (id) => {
+  const invoice = await Invoice.findById(id);
+  if (!invoice) throw ApiError.notFound('Invoice not found.');
+  if (invoice.paymentStatus !== INVOICE_PAYMENT_STATUS.PAID) {
+    throw ApiError.badRequest('A receipt can only be emailed after the invoice is paid.');
+  }
+  const receipt = await sendPaidReceipt(invoice);
+  return { invoice, emailStatus: receipt.emailStatus };
 };
 
 const formatMoney = (amount, currency = 'KES') =>
@@ -576,7 +606,7 @@ const sendPaidReceipt = async (invoice) => {
     receipt.emailStatus = emailSent ? 'sent' : 'failed';
     receipt.emailSentAt = emailSent ? new Date() : null;
     if (!emailSent) {
-      receipt.emailError = 'Receipt email delivery failed; retry by saving the invoice as paid again.';
+      receipt.emailError = 'Receipt email delivery failed; use the resend receipt email action to retry.';
       logger.warn(`Paid invoice receipt email was not sent for ${invoice.invoiceNumber}.`);
     }
     await receipt.save();
@@ -678,6 +708,7 @@ module.exports = {
   getInvoiceRecipients,
   confirmMpesaPayment,
   confirmMpesaScreenshotPayment,
+  resendPaidReceiptEmail,
   updatePaymentStatus,
   generateInvoicePdfBuffer,
   getInvoicePdfBuffer,

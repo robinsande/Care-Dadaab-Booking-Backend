@@ -1,6 +1,7 @@
 const parseMpesaMessage = (message) => {
   const text = String(message || '').trim();
-  const transactionId = text.match(/(?:^|\n)\s*([A-Z0-9]{8,12})[\s:,-]+Confirmed\b/im)?.[1]?.toUpperCase();
+  const transactionId = text.match(/(?:^|\n)\s*([A-Z0-9]{8,12})[\s:,-]+Confirmed\b/im)?.[1]?.toUpperCase()
+    || text.match(/\b([A-Z0-9]{8,12})\s+Confirmed\b/i)?.[1]?.toUpperCase();
   const amountText = text.match(/\bKsh\.?\s*([\d,]+(?:\.\d{1,2})?)\b/i)?.[1];
 
   if (!transactionId || !amountText) return null;

@@ -54,10 +54,20 @@ const confirmMpesaScreenshotPayment = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'M-Pesa screenshot verified and invoice marked as paid.', data: invoice });
 });
 
+const resendPaidReceiptEmail = asyncHandler(async (req, res) => {
+  const result = await invoiceService.resendPaidReceiptEmail(req.params.id);
+  const sent = result.emailStatus === 'sent';
+  sendSuccess(res, {
+    message: sent ? 'Payment receipt emailed to the guest.' : 'Receipt email could not be sent. Check the email configuration and try again.',
+    data: result,
+  });
+});
+
 module.exports = {
   listInvoices,
   getInvoice,
   updatePaymentStatus,
   confirmMpesaPayment,
   confirmMpesaScreenshotPayment,
+  resendPaidReceiptEmail,
 };

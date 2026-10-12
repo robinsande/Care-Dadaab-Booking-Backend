@@ -34,5 +34,10 @@ router.post(
   uploadMpesaScreenshot,
   invoiceController.confirmMpesaScreenshotPayment
 );
+router.post(
+  '/:id/receipt-email',
+  validate([mongoIdParam('id')]),
+  invoiceController.resendPaidReceiptEmail
+);
 
 module.exports = router;

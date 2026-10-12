@@ -268,6 +268,40 @@ test('uploading a valid M-Pesa screenshot records the transaction and automatica
   assert.equal(audit.metadata.confirmationSource, 'OCR');
 });
 
+test('invoice list shows the payment receipt email status for paid invoices', async (t) => {
+  const originals = {
+    findInvoices: Invoice.find,
+    countInvoices: Invoice.countDocuments,
+    findReceipts: Receipt.find,
+  };
+  const invoice = { _id: 'paid-invoice-id', paymentStatus: 'Paid' };
+  Invoice.find = () => ({
+    populate() { return this; },
+    sort() { return this; },
+    skip() { return this; },
+    limit() { return this; },
+    lean: async () => [invoice],
+  });
+  Invoice.countDocuments = async () => 1;
+  Receipt.find = (filter) => {
+    assert.deepEqual(filter, { invoice: { $in: ['paid-invoice-id'] } });
+    return {
+      select() { return this; },
+      lean: async () => [{ invoice: 'paid-invoice-id', emailStatus: 'sent' }],
+    };
+  };
+  t.after(() => {
+    Invoice.find = originals.findInvoices;
+    Invoice.countDocuments = originals.countInvoices;
+    Receipt.find = originals.findReceipts;
+  });
+
+  const result = await invoiceService.listInvoices();
+
+  assert.equal(result.items[0].receiptEmailStatus, 'sent');
+  assert.equal(result.invoices[0].receiptEmailStatus, 'sent');
+});
+
 test('paid invoice email includes the generated receipt PDF', async (t) => {
   const originalFetch = global.fetch;
   const originalApiKey = env.brevoApiKey;

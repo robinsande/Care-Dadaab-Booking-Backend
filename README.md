@@ -92,6 +92,7 @@ All endpoints require JWT except `POST /auth/login`.
 - `PATCH /invoices/:id/payment-status`
 - `POST /invoices/:id/mpesa-confirmation` — paste a confirmed M-Pesa message and acknowledge verification; the transaction code and amount are matched to the invoice.
 - `POST /invoices/:id/mpesa-screenshot` — upload a JPEG/PNG M-Pesa SMS screenshot as `screenshot`; local OCR reads it and marks the invoice paid only when a confirmed transaction and exact invoice amount are found. Screenshots are not retained. OCR downloads its English language data on first use, so the backend needs outbound internet access for initialization.
+- `POST /invoices/:id/receipt-email` — retry a pending or failed payment receipt email to the guest.
 - Invoice emails are sent once to the guest and the creating Accommodation Officer, never to Super Admin recipients.
 - Marking an invoice Paid creates a numbered receipt, stores its PDF and payment/invoice snapshot for audit, and emails the receipt PDF to the guest.
 - Print and Download use the same server-generated PDF; paid invoices return the saved receipt PDF.
